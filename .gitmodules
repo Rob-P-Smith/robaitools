@@ -1,27 +1,27 @@
 [submodule "robaicrawler"]
 	path = robaicrawler
-	url = ./robaicrawler
+	url = https://github.com/Rob-P-Smith/robaicrawler.git
 [submodule "robaidata"]
 	path = robaidata
-	url = ./robaidata
+	url = https://github.com/Rob-P-Smith/robaidata.git
 [submodule "robaivllm"]
 	path = robaivllm
-	url = ./robaivllm
+	url = https://github.com/Rob-P-Smith/robaivllm.git
 [submodule "robairagapi"]
 	path = robairagapi
-	url = ./robairagapi
+	url = https://github.com/Rob-P-Smith/robairagapi.git
 [submodule "robaiproxy"]
 	path = robaiproxy
-	url = ./robaiproxy
+	url = https://github.com/Rob-P-Smith/robaiproxy.git
 [submodule "robaimodeltools"]
 	path = robaimodeltools
-	url = ./robaimodeltools
+	url = https://github.com/Rob-P-Smith/robaimodeltools.git
 [submodule "robaitragmcp"]
 	path = robaitragmcp
-	url = ./robaitragmcp
+	url = https://github.com/Rob-P-Smith/robaitragmcp.git
 [submodule "robaikg"]
 	path = robaikg
-	url = ./robaikg
+	url = https://github.com/Rob-P-Smith/robaikg.git
 [submodule "robaiwebui"]
 	path = robaiwebui
-	url = ./robaiwebui
+	url = https://github.com/Rob-P-Smith/robaiwebui.git
