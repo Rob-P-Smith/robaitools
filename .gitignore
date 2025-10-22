@@ -36,3 +36,7 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+
+# Local management scripts
+managegit.sh
+create_github_repos.sh

@@ -1,0 +1,127 @@
+services:
+  # vLLM Service - Must start first (no dependencies)
+  # vllm-qwen3:
+  #   extends:
+  #     file: ./robaivllm/docker-compose.yml
+  #     service: vllm-qwen3
+  #   environment:
+  #     - VLLM_BASE_URL=${VLLM_BASE_URL:-http://localhost:8078}
+
+  # Crawl4AI Service - Independent service
+  crawl4ai:
+    extends:
+      file: ./robaicrawler/docker-compose.yml
+      service: crawl4ai
+
+  # Neo4j Knowledge Graph - Depends on crawl4ai network
+  neo4j:
+    extends:
+      file: ./robaikg/docker-compose.yml
+      service: neo4j
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-knowledge_graph_2024}
+      - NEO4J_server_memory_heap_initial__size=${NEO4J_HEAP_INITIAL_SIZE:-512m}
+      - NEO4J_server_memory_heap_max__size=${NEO4J_HEAP_MAX_SIZE:-16G}
+      - NEO4J_server_memory_pagecache_size=${NEO4J_PAGECACHE_SIZE:-2G}
+    depends_on:
+      crawl4ai:
+        condition: service_healthy
+
+  # Knowledge Graph Service - Depends on neo4j and vllm
+  kg-service:
+    extends:
+      file: ./robaikg/docker-compose.yml
+      service: kg-service
+    environment:
+      - SERVICE_NAME=${KG_SERVICE_NAME:-kg-service}
+      - SERVICE_VERSION=${KG_SERVICE_VERSION:-1.0.0}
+      - API_HOST=${KG_SERVICE_HOST:-0.0.0.0}
+      - API_PORT=${KG_SERVICE_PORT:-8088}
+      - DEBUG=${KG_DEBUG:-false}
+      - LOG_LEVEL=${KG_LOG_LEVEL:-INFO}
+      - NEO4J_URI=${NEO4J_URI:-bolt://localhost:7687}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-knowledge_graph_2024}
+      - VLLM_BASE_URL=${VLLM_BASE_URL:-http://localhost:8078}
+      - GLINER_MODEL=${GLINER_MODEL:-urchade/gliner_large-v2.1}
+      - GLINER_THRESHOLD=${GLINER_THRESHOLD:-0.45}
+      - USE_GLINER_ENTITIES=${USE_GLINER_ENTITIES:-true}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      # vllm-qwen3:
+      #   condition: service_healthy
+
+  # MCP Server - Depends on crawl4ai and kg-service
+  robaitragmcp:
+    extends:
+      file: ./robaitragmcp/docker-compose.yml
+      service: mcp-server
+    volumes:
+      - ${ROBAI_DATA_PATH:-./robaidata}:/data
+    environment:
+      - CRAWL4AI_URL=${CRAWL4AI_URL:-http://localhost:11235}
+      - KG_SERVICE_URL=${KG_SERVICE_URL:-http://localhost:8088}
+      - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
+      - USE_MEMORY_DB=${USE_MEMORY_DB:-false}
+      - BLOCKED_DOMAIN_KEYWORD=${BLOCKED_DOMAIN_KEYWORD:-your-secret-keyword}
+      - LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
+    depends_on:
+      crawl4ai:
+        condition: service_healthy
+      kg-service:
+        condition: service_healthy
+
+  # RAG API Bridge - Depends on MCP server
+  robairagapi:
+    extends:
+      file: ./robairagapi/docker-compose.yml
+      service: robairagapi
+    volumes:
+      - ${ROBAI_DATA_PATH:-./robaidata}:/data
+    environment:
+      - SERVER_HOST=${RAGAPI_SERVER_HOST:-0.0.0.0}
+      - SERVER_PORT=${RAGAPI_SERVER_PORT:-8080}
+      - MCP_SERVER_HOST=${MCP_SERVER_HOST:-localhost}
+      - MCP_SERVER_PORT=${MCP_SERVER_PORT:-3000}
+      - LOCAL_API_KEY=${LOCAL_API_KEY:-your-secret-api-key}
+      - ENABLE_CORS=${ENABLE_CORS:-true}
+      - LOG_LEVEL=${RAGAPI_LOG_LEVEL:-INFO}
+      - CRAWL4AI_URL=${CRAWL4AI_URL:-http://localhost:11235}
+      - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
+      - USE_MEMORY_DB=${USE_MEMORY_DB:-false}
+    depends_on:
+      robaitragmcp:
+        condition: service_healthy
+
+  # Open WebUI - Chat Interface (Optional)
+  open-webui:
+    extends:
+      file: ./robaiwebui/docker-compose.yml
+      service: open-webui
+    environment:
+      - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://192.168.10.50:8079/v1}
+      - OPENAI_API_KEY=${LOCAL_API_KEY:-sk-dummy-key}
+    depends_on:
+      - robairagapi
+
+# Import networks from sub-projects
+networks:
+  crawler_default:
+    external: true
+  neo4j-network:
+    name: neo4j-network
+
+# Import volumes from sub-projects
+volumes:
+  kg-models:
+    name: kg-models
+    external: true
+  robaidata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/robaidata
+  open-webui_open-webui:
+    external: true

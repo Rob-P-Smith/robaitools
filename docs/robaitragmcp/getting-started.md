@@ -1,0 +1,23 @@
+---
+layout: default
+title: Getting Started
+parent: robaitragmcp
+nav_order: 1
+---
+
+# Getting Started with robaitragmcp
+
+{: .note }
+Documentation content to be added.
+
+## Installation
+
+Content to be added.
+
+## Basic Usage
+
+Content to be added.
+
+## Next Steps
+
+Content to be added.

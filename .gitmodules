@@ -25,3 +25,6 @@
 [submodule "robaiwebui"]
 	path = robaiwebui
 	url = https://github.com/Rob-P-Smith/robaiwebui.git
+[submodule "robairagmcpremoteclient"]
+	path = robairagmcpremoteclient
+	url = https://github.com/Rob-P-Smith/robairagmcpremoteclient.git
