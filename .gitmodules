@@ -1,0 +1,27 @@
+[submodule "robaicrawler"]
+	path = robaicrawler
+	url = ./robaicrawler
+[submodule "robaidata"]
+	path = robaidata
+	url = ./robaidata
+[submodule "robaivllm"]
+	path = robaivllm
+	url = ./robaivllm
+[submodule "robairagapi"]
+	path = robairagapi
+	url = ./robairagapi
+[submodule "robaiproxy"]
+	path = robaiproxy
+	url = ./robaiproxy
+[submodule "robaimodeltools"]
+	path = robaimodeltools
+	url = ./robaimodeltools
+[submodule "robaitragmcp"]
+	path = robaitragmcp
+	url = ./robaitragmcp
+[submodule "robaikg"]
+	path = robaikg
+	url = ./robaikg
+[submodule "robaiwebui"]
+	path = robaiwebui
+	url = ./robaiwebui

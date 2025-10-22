@@ -1,0 +1,38 @@
+# Environment files
+.env
+.env.local
+
+# Python virtual environment
+robaivenv/
+venv/
+env/
+*.pyc
+__pycache__/
+
+# Data directories (database files, logs, etc.)
+robaidata/
+
+# Docker volumes and data
+*/data/
+*/logs/
+*/neo4j/data/
+*/neo4j/logs/
+*/neo4j/import/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
