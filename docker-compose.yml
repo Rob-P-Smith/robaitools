@@ -12,6 +12,9 @@ services:
     extends:
       file: ./robaicrawler/docker-compose.yml
       service: crawl4ai
+    environment:
+      - LOG_LEVEL=${CRAWL4AI_LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CRAWL4AI_CORS_ORIGINS:-*}
 
   # Neo4j Knowledge Graph - Depends on crawl4ai network
   neo4j:
@@ -60,11 +63,18 @@ services:
     volumes:
       - ${ROBAI_DATA_PATH:-./robaidata}:/data
     environment:
-      - CRAWL4AI_URL=${CRAWL4AI_URL:-http://localhost:11235}
-      - KG_SERVICE_URL=${KG_SERVICE_URL:-http://localhost:8088}
+      # Service URLs
+      - CRAWL4AI_URL=${MCP_CRAWL4AI_URL:-http://localhost:11235}
+      - KG_SERVICE_URL=${MCP_KG_SERVICE_URL:-http://localhost:8088}
+
+      # Database Configuration
       - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
       - USE_MEMORY_DB=${USE_MEMORY_DB:-false}
-      - BLOCKED_DOMAIN_KEYWORD=${BLOCKED_DOMAIN_KEYWORD:-your-secret-keyword}
+
+      # Blocked Domain Management
+      - BLOCKED_DOMAIN_KEYWORD=${BLOCKED_DOMAIN_KEYWORD:-bilbobaggins}
+
+      # Logging
       - LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
     depends_on:
       crawl4ai:
@@ -81,11 +91,16 @@ services:
       - ${ROBAI_DATA_PATH:-./robaidata}:/data
     environment:
       - SERVER_HOST=${RAGAPI_SERVER_HOST:-0.0.0.0}
-      - SERVER_PORT=${RAGAPI_SERVER_PORT:-8080}
+      - SERVER_PORT=${RAGAPI_SERVER_PORT:-8081}
       - MCP_SERVER_HOST=${MCP_SERVER_HOST:-localhost}
       - MCP_SERVER_PORT=${MCP_SERVER_PORT:-3000}
-      - LOCAL_API_KEY=${LOCAL_API_KEY:-your-secret-api-key}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_API_KEY_2=${OPENAI_API_KEY_2}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+      - ENABLE_RATE_LIMIT=${ENABLE_RATE_LIMIT:-true}
+      - MCP_CONNECTION_TIMEOUT=${MCP_CONNECTION_TIMEOUT:-30}
       - ENABLE_CORS=${ENABLE_CORS:-true}
+      - CORS_ORIGINS=${RAGAPI_CORS_ORIGINS:-*}
       - LOG_LEVEL=${RAGAPI_LOG_LEVEL:-INFO}
       - CRAWL4AI_URL=${CRAWL4AI_URL:-http://localhost:11235}
       - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
@@ -101,7 +116,7 @@ services:
       service: open-webui
     environment:
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://192.168.10.50:8079/v1}
-      - OPENAI_API_KEY=${LOCAL_API_KEY:-sk-dummy-key}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-dummy-key}
     depends_on:
       - robairagapi
 
