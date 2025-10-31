@@ -105,6 +105,11 @@ services:
       - CRAWL4AI_URL=${CRAWL4AI_URL:-http://localhost:11235}
       - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
       - USE_MEMORY_DB=${USE_MEMORY_DB:-false}
+      - PFSENSE_IP=${PFSENSE_IP:-192.168.10.1}
+      - PFSENSE_MAC=${PFSENSE_MAC:-58:9c:fc:10:ff:d8}
+      - TRUSTED_LAN_SUBNET=${TRUSTED_LAN_SUBNET:-192.168.10.0/24}
+      - STRICT_AUTH_FOR_PFSENSE=${STRICT_AUTH_FOR_PFSENSE:-true}
+      - ENABLE_MAC_VALIDATION=${ENABLE_MAC_VALIDATION:-true}
     depends_on:
       robaitragmcp:
         condition: service_healthy
