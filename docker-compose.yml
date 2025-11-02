@@ -76,6 +76,13 @@ services:
 
       # Logging
       - LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
+
+      # MCP Server Configuration
+      - MCP_TOOL_TIMEOUT=${MCP_TOOL_TIMEOUT:-60}
+      - MCP_ACTION_LOG_LEVEL=${MCP_ACTION_LOG_LEVEL:-INFO}
+      - MCP_ACTION_LOG_FILE=${MCP_ACTION_LOG_FILE:-/tmp/mcp.log}
+      - MCP_ACTION_LOG_MAX_CONTENT=${MCP_ACTION_LOG_MAX_CONTENT:-50}
+      - DISCOVERY_INTERVAL=${DISCOVERY_INTERVAL:-30}
     depends_on:
       crawl4ai:
         condition: service_healthy
