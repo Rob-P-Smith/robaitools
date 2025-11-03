@@ -28,3 +28,6 @@
 [submodule "robairagmcpremoteclient"]
 	path = robairagmcpremoteclient
 	url = https://github.com/Rob-P-Smith/robairagmcpremoteclient.git
+[submodule "robaimultiturn"]
+	path = robaimultiturn
+	url = https://github.com/Rob-P-Smith/robaimultiturn.git
