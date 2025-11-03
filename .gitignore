@@ -40,3 +40,6 @@ build/
 # Local management scripts
 managegit.sh
 create_github_repos.sh
+
+# Claude Code instructions
+CLAUDE.md

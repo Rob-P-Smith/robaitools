@@ -2,17 +2,103 @@
 
 This document maps the service names in the master `docker-compose.yml` to their source files and explains the naming conventions.
 
+## Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph External["External Services"]
+        SerperAPI["Serper API<br/>(Web Search)"]
+        RemoteWebUI["Remote OpenWebUI<br/>(HTTPS)"]
+    end
+
+    subgraph NonDocker["Non-Docker Services"]
+        Proxy["robaiproxy<br/>Port 8079<br/>(API Gateway)"]
+    end
+
+    subgraph Docker["Docker Services"]
+        WebUI["open-webui<br/>Port 80<br/>(robaiwebui/)"]
+        RAGAPI["robairagapi<br/>Port 8081<br/>(REST API Bridge)"]
+        MCP["robaitragmcp<br/>Port 3000<br/>(MCP Server)"]
+        Crawl["crawl4ai<br/>Port 11235<br/>(robaicrawler/)"]
+        KGSvc["kg-service<br/>Port 8088<br/>(robaikg/)"]
+        Neo4j["neo4j<br/>Ports 7474,7687<br/>(robaikg/)"]
+        vLLM["vllm-qwen3<br/>Port 8078<br/>(robaivllm/)<br/>DISABLED"]
+    end
+
+    subgraph Libraries["Shared Libraries"]
+        ModelTools["robaimodeltools<br/>(RAG Core)"]
+        MultiTurn["robaimultiturn<br/>(Research)"]
+    end
+
+    subgraph Data["Data Storage"]
+        DataVol["robaidata/<br/>(SQLite DB)"]
+    end
+
+    subgraph RemoteClient["Remote MCP Client"]
+        MCPClient["robairagmcpremoteclient<br/>(Docker)<br/>(Connects to Remote)"]
+    end
+
+    WebUI -->|"OpenAI API"| Proxy
+    Proxy -.->|"DISABLED"| vLLM
+    Proxy -->|"Research/Chat"| RAGAPI
+    Proxy -->|"Uses"| MultiTurn
+    Proxy -->|"Web Search"| SerperAPI
+
+    RAGAPI -->|"MCP Tools"| MCP
+    RAGAPI -->|"Uses"| ModelTools
+
+    MCP -->|"Crawl URLs"| Crawl
+    MCP -->|"KG Search"| KGSvc
+    MCP -->|"Uses"| ModelTools
+    MCP -->|"Read/Write"| DataVol
+
+    RAGAPI -->|"Read/Write"| DataVol
+
+    KGSvc -->|"Graph Queries"| Neo4j
+    KGSvc -->|"Entity Extract"| Crawl
+
+    MCPClient -->|"HTTPS + Bearer"| RemoteWebUI
+
+    style vLLM fill:#dd0000,stroke:#800000,stroke-width:3px,stroke-dasharray: 5 5,color:#000
+    style Proxy fill:#ff8c00,stroke:#000,stroke-width:3px,color:#000
+    style WebUI fill:#008000,stroke:#000,stroke-width:3px,color:#fff
+    style RAGAPI fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
+    style MCP fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
+    style Crawl fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
+    style KGSvc fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
+    style Neo4j fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
+    style SerperAPI fill:#6600cc,stroke:#000,stroke-width:3px,color:#fff
+    style RemoteWebUI fill:#6600cc,stroke:#000,stroke-width:3px,color:#fff
+    style ModelTools fill:#333,stroke:#000,stroke-width:3px,color:#fff
+    style MultiTurn fill:#333,stroke:#000,stroke-width:3px,color:#fff
+    style DataVol fill:#fff,stroke:#000,stroke-width:3px,color:#000
+    style MCPClient fill:#ff9933,stroke:#000,stroke-width:3px,color:#000
+```
+
+**Legend:**
+- **Solid lines** = Active connections
+- **Dashed lines** = Disabled connections
+- **Orange** = Non-Docker service
+- **Green** = User interface
+- **Blue** = Docker services
+- **Purple** = External APIs
+- **Dark gray** = Shared libraries
+- **Red dashed** = Disabled service
+- **White** = Data storage
+- **Brown** = Remote client
+
 ## Service Inventory
 
 | Master Service Name | Source File | Child Service Name | Container Name | Purpose |
 |---------------------|-------------|-------------------|----------------|---------|
-| `vllm-qwen3` | `robaivllm/docker-compose.yml` | `vllm-qwen3` | `vllm-qwen3` | LLM inference (Qwen 3) |
 | `crawl4ai` | `robaicrawler/docker-compose.yml` | `crawl4ai` | `crawl4ai` | Web content extraction |
 | `neo4j` | `robaikg/docker-compose.yml` | `neo4j` | `neo4j-kg` | Graph database |
 | `kg-service` | `robaikg/docker-compose.yml` | `kg-service` | `kg-service` | KG extraction service |
 | `robaitragmcp` | `robaitragmcp/docker-compose.yml` | `mcp-server` | `robaimcp` | MCP server (RAG + KG) |
 | `robairagapi` | `robairagapi/docker-compose.yml` | `robairagapi` | `robairagapi` | REST API bridge |
 | `open-webui` | `robaiwebui/docker-compose.yml` | `open-webui` | `robai-webui` | Chat interface |
+
+**Disabled**: `vllm-qwen3` (commented out in master docker-compose.yml)
 
 ## Naming Convention
 
@@ -63,14 +149,13 @@ robairagapi:  # ← Project name in service
 
 ```
 Level 0 (No Dependencies):
-├─ vllm-qwen3
 └─ crawl4ai
 
 Level 1 (Depends on Level 0):
 └─ neo4j (waits for crawl4ai healthy)
 
 Level 2 (Depends on Level 1):
-└─ kg-service (waits for neo4j + vllm-qwen3 healthy)
+└─ kg-service (waits for neo4j healthy)
 
 Level 3 (Depends on Level 2):
 └─ robaitragmcp (waits for crawl4ai + kg-service healthy)
@@ -85,9 +170,9 @@ Level 5 (Optional UI):
 ### Startup Order
 
 ```
-1. vllm-qwen3, crawl4ai (parallel, no dependencies)
+1. crawl4ai (no dependencies)
 2. neo4j (waits for crawl4ai healthy)
-3. kg-service (waits for neo4j + vllm-qwen3 healthy)
+3. kg-service (waits for neo4j healthy)
 4. robaitragmcp (waits for crawl4ai + kg-service healthy)
 5. robairagapi (waits for robaitragmcp healthy)
 6. open-webui (waits for robairagapi started)
@@ -99,12 +184,11 @@ Level 5 (Optional UI):
 
 | Service | Internal Port | External Port | Protocol | Purpose |
 |---------|--------------|---------------|----------|---------|
-| `vllm-qwen3` | 8078 | 8078 | HTTP | OpenAI-compatible API |
 | `crawl4ai` | 11235 | 11235 | HTTP | Crawl4AI API |
 | `neo4j` | 7474, 7687 | 7474, 7687 | HTTP, Bolt | Neo4j Browser, Bolt protocol |
 | `kg-service` | 8088 | 8088 | HTTP | KG extraction API |
 | `robaitragmcp` | 3000 | localhost only | TCP | MCP stdio over TCP (socat) |
-| `robairagapi` | 8080 | 8080 | HTTP | REST API |
+| `robairagapi` | 8081 | 8081 | HTTP | REST API |
 | `open-webui` | 8080 | 80 | HTTP | Web UI |
 
 **Note**: All services use `network_mode: "host"` except `open-webui` which uses explicit port mapping.
@@ -115,11 +199,11 @@ Level 5 (Optional UI):
 
 | Service | Host Path | Container Path | Purpose |
 |---------|-----------|----------------|---------|
-| `robaitragmcp` | `./robaidata` | `/app/data` | SQLite database |
-| `robairagapi` | `./robaidata` | `/app/data` | Shared data access |
+| `robaitragmcp` | `./robaidata` | `/data` | SQLite database |
+| `robairagapi` | `./robaidata` | `/data` | Shared data access |
 | `kg-service` | Named volume: `kg-models` | `/app/models` | GLiNER models |
 | `neo4j` | Named volume: `neo4j-data` | `/data` | Graph database |
-| `open-webui` | Named volume: `open-webui` | `/app/backend/data` | UI data |
+| `open-webui` | Named volume: `open-webui_open-webui` | `/app/backend/data` | UI data |
 
 ---
 
@@ -136,13 +220,13 @@ docker compose up -d
 # Start only kg-service and its dependencies
 docker compose up -d kg-service
 
-# This will start: vllm-qwen3, crawl4ai, neo4j, kg-service
+# This will start: crawl4ai, neo4j, kg-service
 ```
 
 ### Start Without Optional Services
 ```bash
 # Start everything except Open WebUI
-docker compose up -d vllm-qwen3 crawl4ai neo4j kg-service robaitragmcp robairagapi
+docker compose up -d crawl4ai neo4j kg-service robaitragmcp robairagapi
 ```
 
 ---
@@ -177,7 +261,6 @@ kg-service:
 
 | Service | Health Check | Interval | Timeout | Start Period |
 |---------|--------------|----------|---------|--------------|
-| `vllm-qwen3` | HTTP GET /health | 30s | 10s | 180s |
 | `crawl4ai` | HTTP GET /health | 30s | 10s | 60s |
 | `neo4j` | cypher-shell query | 30s | 10s | 60s |
 | `kg-service` | HTTP GET /health | 30s | 10s | 120s |
@@ -186,7 +269,7 @@ kg-service:
 | `open-webui` | None | - | - | - |
 
 **Dependency Wait Conditions**:
-- `service_healthy` - Waits for healthcheck to pass (used for vllm, crawl4ai, neo4j, kg-service, robaitragmcp)
+- `service_healthy` - Waits for healthcheck to pass (used for crawl4ai, neo4j, kg-service, robaitragmcp)
 - `service_started` - Waits for container to start (used for robairagapi → open-webui)
 
 ---
@@ -202,7 +285,6 @@ docker compose config --services
 ```
 crawl4ai
 neo4j
-vllm-qwen3
 kg-service
 robaitragmcp
 robairagapi
@@ -308,9 +390,6 @@ MCP_SERVER_PORT = 3000
 From host machine:
 
 ```bash
-# LLM API
-curl http://localhost:8078/v1/models
-
 # Crawl4AI
 curl http://localhost:11235/health
 
@@ -318,7 +397,7 @@ curl http://localhost:11235/health
 curl http://localhost:8088/health
 
 # RAG API
-curl http://localhost:8080/api/v1/stats \
+curl http://localhost:8081/api/v1/stats \
   -H "Authorization: Bearer your-api-key"
 
 # Open WebUI
@@ -338,8 +417,8 @@ open http://localhost:80
 
 ## Summary
 
-**Total Services**: 7
-- 2 Core (vLLM, Crawl4AI)
+**Total Services**: 6
+- 1 Core (Crawl4AI)
 - 2 Knowledge Graph (Neo4j, KG Service)
 - 2 RAG (MCP Server, API Bridge)
 - 1 UI (Open WebUI)
@@ -351,6 +430,6 @@ open http://localhost:80
 
 **Dependency Levels**: 6 levels (0-5)
 
-**Health Checks**: 5 services have healthchecks, 2 optional services don't
+**Health Checks**: 4 services have healthchecks, 2 services don't
 
-**Startup Time**: ~3-5 minutes for all services to become healthy
+**Startup Time**: ~2-3 minutes for all services to become healthy

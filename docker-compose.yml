@@ -46,9 +46,6 @@ services:
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-knowledge_graph_2024}
       - VLLM_BASE_URL=${VLLM_BASE_URL:-http://localhost:8078}
-      - GLINER_MODEL=${GLINER_MODEL:-urchade/gliner_large-v2.1}
-      - GLINER_THRESHOLD=${GLINER_THRESHOLD:-0.45}
-      - USE_GLINER_ENTITIES=${USE_GLINER_ENTITIES:-true}
     depends_on:
       neo4j:
         condition: service_healthy
