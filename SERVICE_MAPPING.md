@@ -6,86 +6,77 @@ This document maps the service names in the master `docker-compose.yml` to their
 
 ```mermaid
 graph TB
-    subgraph External["External Services"]
-        SerperAPI["Serper API<br/>(Web Search)"]
-        RemoteWebUI["Remote OpenWebUI<br/>(HTTPS)"]
+    subgraph L1["Layer 1: User Interfaces"]
+        WebUI["open-webui<br/>:80"]
+        MCPClient["robairagmcpremoteclient<br/>(Remote Client)"]
     end
 
-    subgraph NonDocker["Non-Docker Services"]
-        Proxy["robaiproxy<br/>Port 8079<br/>(API Gateway)"]
+    subgraph L2["Layer 2: API Gateway"]
+        Proxy["robaiproxy<br/>:8079<br/>(Non-Docker)"]
     end
 
-    subgraph Docker["Docker Services"]
-        WebUI["open-webui<br/>Port 80<br/>(robaiwebui/)"]
-        RAGAPI["robairagapi<br/>Port 8081<br/>(REST API Bridge)"]
-        MCP["robaitragmcp<br/>Port 3000<br/>(MCP Server)"]
-        Crawl["crawl4ai<br/>Port 11235<br/>(robaicrawler/)"]
-        KGSvc["kg-service<br/>Port 8088<br/>(robaikg/)"]
-        Neo4j["neo4j<br/>Ports 7474,7687<br/>(robaikg/)"]
-        vLLM["vllm-qwen3<br/>Port 8078<br/>(robaivllm/)<br/>DISABLED"]
+    subgraph L3["Layer 3: Core Services (Docker)"]
+        RAGAPI["robairagapi<br/>:8081"]
+        MCP["robaitragmcp<br/>:3000"]
     end
 
-    subgraph Libraries["Shared Libraries"]
-        ModelTools["robaimodeltools<br/>(RAG Core)"]
-        MultiTurn["robaimultiturn<br/>(Research)"]
+    subgraph L4["Layer 4: Data Services (Docker)"]
+        Crawl["crawl4ai<br/>:11235"]
+        KGSvc["kg-service<br/>:8088"]
+        Neo4j["neo4j<br/>:7474/:7687"]
     end
 
-    subgraph Data["Data Storage"]
-        DataVol["robaidata/<br/>(SQLite DB)"]
+    subgraph EXT["External APIs"]
+        SerperAPI["Serper API"]
+        RemoteWebUI["Remote WebUI"]
+        vLLM["vllm-qwen3<br/>:8078<br/>DISABLED"]
     end
 
-    subgraph RemoteClient["Remote MCP Client"]
-        MCPClient["robairagmcpremoteclient<br/>(Docker)<br/>(Connects to Remote)"]
+    subgraph LIB["Shared Libraries"]
+        MultiTurn["robaimultiturn"]
+        ModelTools["robaimodeltools"]
     end
 
-    WebUI -->|"OpenAI API"| Proxy
-    Proxy -.->|"DISABLED"| vLLM
-    Proxy -->|"Research/Chat"| RAGAPI
-    Proxy -->|"Uses"| MultiTurn
-    Proxy -->|"Web Search"| SerperAPI
+    subgraph STORAGE["Data Storage"]
+        DataVol["robaidata/<br/>(SQLite)"]
+    end
 
-    RAGAPI -->|"MCP Tools"| MCP
-    RAGAPI -->|"Uses"| ModelTools
+    WebUI --> Proxy
+    Proxy --> MultiTurn
+    Proxy --> RAGAPI
+    MultiTurn --> SerperAPI
+    MultiTurn -.-> RAGAPI
+    RAGAPI --> MCP
+    RAGAPI --> ModelTools
+    MCP --> ModelTools
+    MCP --> Crawl
+    MCP --> KGSvc
+    MCP --> DataVol
+    RAGAPI --> DataVol
+    KGSvc --> Neo4j
+    KGSvc --> Crawl
+    MCPClient --> RemoteWebUI
+    Proxy -.-> vLLM
 
-    MCP -->|"Crawl URLs"| Crawl
-    MCP -->|"KG Search"| KGSvc
-    MCP -->|"Uses"| ModelTools
-    MCP -->|"Read/Write"| DataVol
-
-    RAGAPI -->|"Read/Write"| DataVol
-
-    KGSvc -->|"Graph Queries"| Neo4j
-    KGSvc -->|"Entity Extract"| Crawl
-
-    MCPClient -->|"HTTPS + Bearer"| RemoteWebUI
-
-    style vLLM fill:#dd0000,stroke:#800000,stroke-width:3px,stroke-dasharray: 5 5,color:#000
-    style Proxy fill:#ff8c00,stroke:#000,stroke-width:3px,color:#000
-    style WebUI fill:#008000,stroke:#000,stroke-width:3px,color:#fff
-    style RAGAPI fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
-    style MCP fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
-    style Crawl fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
-    style KGSvc fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
-    style Neo4j fill:#0066cc,stroke:#000,stroke-width:3px,color:#fff
-    style SerperAPI fill:#6600cc,stroke:#000,stroke-width:3px,color:#fff
-    style RemoteWebUI fill:#6600cc,stroke:#000,stroke-width:3px,color:#fff
-    style ModelTools fill:#333,stroke:#000,stroke-width:3px,color:#fff
-    style MultiTurn fill:#333,stroke:#000,stroke-width:3px,color:#fff
-    style DataVol fill:#fff,stroke:#000,stroke-width:3px,color:#000
-    style MCPClient fill:#ff9933,stroke:#000,stroke-width:3px,color:#000
+    style vLLM fill:#dd0000,stroke:#800,stroke-width:2px,stroke-dasharray:5 5,color:#000
+    style Proxy fill:#ff8c00,stroke:#000,stroke-width:2px,color:#000
+    style WebUI fill:#008000,stroke:#000,stroke-width:2px,color:#fff
+    style RAGAPI fill:#0066cc,stroke:#000,stroke-width:2px,color:#fff
+    style MCP fill:#0066cc,stroke:#000,stroke-width:2px,color:#fff
+    style Crawl fill:#0066cc,stroke:#000,stroke-width:2px,color:#fff
+    style KGSvc fill:#0066cc,stroke:#000,stroke-width:2px,color:#fff
+    style Neo4j fill:#0066cc,stroke:#000,stroke-width:2px,color:#fff
+    style SerperAPI fill:#6600cc,stroke:#000,stroke-width:2px,color:#fff
+    style RemoteWebUI fill:#6600cc,stroke:#000,stroke-width:2px,color:#fff
+    style ModelTools fill:#333,stroke:#000,stroke-width:2px,color:#000
+    style MultiTurn fill:#333,stroke:#000,stroke-width:2px,color:#000
+    style DataVol fill:#fff,stroke:#000,stroke-width:2px,color:#000
+    style MCPClient fill:#ff9933,stroke:#000,stroke-width:2px,color:#000
 ```
 
 **Legend:**
-- **Solid lines** = Active connections
-- **Dashed lines** = Disabled connections
-- **Orange** = Non-Docker service
-- **Green** = User interface
-- **Blue** = Docker services
-- **Purple** = External APIs
-- **Dark gray** = Shared libraries
-- **Red dashed** = Disabled service
-- **White** = Data storage
-- **Brown** = Remote client
+- **Solid** = Active | **Dashed** = Disabled/Optional
+- **Orange** = Non-Docker | **Green** = UI | **Blue** = Docker | **Purple** = External | **Gray** = Libraries | **Brown** = Remote Client
 
 ## Service Inventory
 

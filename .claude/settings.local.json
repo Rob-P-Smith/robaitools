@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(time curl -s -X POST http://localhost:8079/api/v1/search -H \"Content-Type: application/json\" -H \"Authorization: Bearer Wtr5+7jIb9/jMb7OmKuL36Ir4Q9hHZMYlawUr2N0QKE=\" -d '{\"\"\"\"query\"\"\"\": \"\"\"\"vllm configuration\"\"\"\", \"\"\"\"limit\"\"\"\": 5}')",
+      "Bash(time curl:*)",
+      "Bash(source:*)",
+      "Bash(time python:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

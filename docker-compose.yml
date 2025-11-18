@@ -1,114 +1,246 @@
-services:
-  # vLLM Service - Must start first (no dependencies)
-  # vllm-qwen3:
-  #   extends:
-  #     file: ./robaivllm/docker-compose.yml
-  #     service: vllm-qwen3
-  #   environment:
-  #     - VLLM_BASE_URL=${VLLM_BASE_URL:-http://localhost:8078}
+# RobAI Tools - Master Docker Compose Configuration
+# Single source of truth for all services
+# All services read from root .env and mount shared robaivenv
 
-  # Crawl4AI Service - Independent service
+# ==============================================================================
+# YAML Anchors - Shared Configuration (DRY Principle)
+# ==============================================================================
+
+x-shared-environment: &shared-environment
+  env_file: .env                                   # All services read root .env
+  environment:
+    - PATH=/venv/bin:$PATH                         # Use mounted venv
+    - PYTHONPATH=/robaitools                       # Import path for shared libs
+
+x-restart-policy: &restart-policy
+  restart: unless-stopped
+
+# ==============================================================================
+# Services
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # LLM Services (vLLM / llama.cpp)
+  # ============================================================================
+
+  # Commented out - enable if needed
+  # qwen3-micro:
+  #   image: ghcr.io/ggerganov/llama.cpp:server-vulkan
+  #   # ... configuration from robaivllm/micromodel
+
+  # llama-gpt-oss:
+  #   image: ghcr.io/ggerganov/llama.cpp:server-vulkan
+  #   # ... configuration from robaivllm
+
+  # ============================================================================
+  # Core Infrastructure Services
+  # ============================================================================
+
+  # Crawl4AI - Web Crawler Service
   crawl4ai:
-    extends:
-      file: ./robaicrawler/docker-compose.yml
-      service: crawl4ai
+    image: unclecode/crawl4ai:latest
+    platform: linux/amd64
+    container_name: robaicrawl4ai
+    <<: *restart-policy
+    ports:
+      - "${CRAWL4AI_PORT:-11235}:11235"
     environment:
       - LOG_LEVEL=${CRAWL4AI_LOG_LEVEL:-INFO}
       - CORS_ORIGINS=${CRAWL4AI_CORS_ORIGINS:-*}
+    networks:
+      - crawler_default
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11235/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  # Neo4j Knowledge Graph - Depends on crawl4ai network
+  # Neo4j - Knowledge Graph Database
   neo4j:
-    extends:
-      file: ./robaikg/docker-compose.yml
-      service: neo4j
+    image: neo4j:5.25-community
+    container_name: robaineo4j
+    <<: *restart-policy
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"           # HTTP - Neo4j Browser
+      - "${NEO4J_BOLT_PORT:-7687}:7687"           # Bolt - Python driver
+    volumes:
+      - ./robaikg/neo4j/data:/data
+      - ./robaikg/neo4j/logs:/logs
+      - ./robaikg/neo4j/import:/var/lib/neo4j/import
+      - ./robaikg/neo4j/plugins:/plugins
     environment:
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-knowledge_graph_2024}
       - NEO4J_server_memory_heap_initial__size=${NEO4J_HEAP_INITIAL_SIZE:-512m}
       - NEO4J_server_memory_heap_max__size=${NEO4J_HEAP_MAX_SIZE:-16G}
       - NEO4J_server_memory_pagecache_size=${NEO4J_PAGECACHE_SIZE:-2G}
+      - NEO4J_PLUGINS=${NEO4J_PLUGINS:-["apoc"]}
+      - NEO4J_dbms_security_procedures_unrestricted=${NEO4J_APOC_UNRESTRICTED:-apoc.*}
+      - NEO4J_dbms_security_procedures_allowlist=${NEO4J_APOC_ALLOWLIST:-apoc.*}
+      - NEO4J_dbms_connector_bolt_thread__pool__min__size=${NEO4J_BOLT_THREAD_POOL_MIN:-5}
+      - NEO4J_dbms_connector_bolt_thread__pool__max__size=${NEO4J_BOLT_THREAD_POOL_MAX:-400}
+      - NEO4J_dbms_logs_query_enabled=${NEO4J_QUERY_LOG_ENABLED:-INFO}
+      - NEO4J_dbms_logs_query_threshold=${NEO4J_QUERY_LOG_THRESHOLD:-1s}
+    networks:
+      - crawler_default
+      - neo4j-network
     depends_on:
       crawl4ai:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  # Knowledge Graph Service - Depends on neo4j and vllm
+  # ============================================================================
+  # RAG Services (Python - Use Shared venv)
+  # ============================================================================
+
+  # Knowledge Graph Service - Entity/Relationship Extraction
   kg-service:
-    extends:
-      file: ./robaikg/docker-compose.yml
-      service: kg-service
+    build:
+      context: .
+      dockerfile: robaikg/kg-service/Dockerfile
+    image: robaikg:latest
+    container_name: robaikg
+    <<: [*restart-policy, *shared-environment]
+    network_mode: host                              # Access vLLM directly
+    volumes:
+      - ./robaivenv:/venv:ro                        # Shared Python venv
+      - ./robaimodeltools:/robaitools/robaimodeltools  # Shared library (writable for logs)
+      - ./robaidata:/robaitools/robaidata           # Shared data
+      - ./robaikg/kg-service:/app                   # Service code
+      - kg-models:/app/models                       # Persistent model cache
+      - ./robaikg/coordinator:/robaitools/robaikg/coordinator:ro
+      - ./robaidata:/data
     environment:
+      # Service Configuration
       - SERVICE_NAME=${KG_SERVICE_NAME:-kg-service}
       - SERVICE_VERSION=${KG_SERVICE_VERSION:-1.0.0}
       - API_HOST=${KG_SERVICE_HOST:-0.0.0.0}
       - API_PORT=${KG_SERVICE_PORT:-8088}
       - DEBUG=${KG_DEBUG:-false}
       - LOG_LEVEL=${KG_LOG_LEVEL:-INFO}
+      # Neo4j Connection
       - NEO4J_URI=${NEO4J_URI:-bolt://localhost:7687}
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-knowledge_graph_2024}
-      - VLLM_BASE_URL=${VLLM_BASE_URL:-http://localhost:8078}
+      - NEO4J_DATABASE=${NEO4J_DATABASE:-neo4j}
+      - NEO4J_MAX_CONNECTION_LIFETIME=${NEO4J_MAX_CONNECTION_LIFETIME:-3600}
+      - NEO4J_MAX_CONNECTION_POOL_SIZE=${NEO4J_MAX_CONNECTION_POOL_SIZE:-50}
+      - NEO4J_CONNECTION_TIMEOUT=${NEO4J_CONNECTION_TIMEOUT:-30}
+      # LLM Configuration
+      - AUGMENT_LLM_URL=${AUGMENT_LLM_URL:-http://localhost:8078}
+      - VLLM_TIMEOUT=${KG_VLLM_TIMEOUT:-1800}
+      - VLLM_MAX_TOKENS=${KG_VLLM_MAX_TOKENS:-65536}
+      - VLLM_TEMPERATURE=${KG_VLLM_TEMPERATURE:-0.1}
+      # KG Worker Configuration
+      - KG_SERVICE_ENABLED=${KG_SERVICE_ENABLED:-true}
+      - KG_NUM_WORKERS=${KG_NUM_WORKERS:-2}
+      - KG_POLL_INTERVAL=${KG_POLL_INTERVAL:-5.0}
+      - KG_SERVICE_URL=${KG_SERVICE_URL:-http://localhost:8088}
+      - KG_SERVICE_TIMEOUT=${KG_SERVICE_TIMEOUT:-1800.0}
+      - KG_HEALTH_CHECK_INTERVAL=${KG_HEALTH_CHECK_INTERVAL:-30.0}
+      - KG_MAX_RETRIES=${KG_MAX_RETRIES:-3}
+      # Database
+      - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
+      - USE_MEMORY_DB=true                          # kg-service owns in-memory database
+      - PYTHONPATH=/robaitools:/app
     depends_on:
       neo4j:
         condition: service_healthy
-      # vllm-qwen3:
-      #   condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # MCP Server - Depends on crawl4ai and kg-service
+  # MCP Server - Model Context Protocol Tool Server
   robaitragmcp:
-    extends:
-      file: ./robaitragmcp/docker-compose.yml
-      service: mcp-server
+    build:
+      context: .
+      dockerfile: robaitragmcp/Dockerfile
+    image: robaitragmcp:latest
+    container_name: robaimcp
+    <<: [*restart-policy, *shared-environment]
+    network_mode: host
     volumes:
-      - ${ROBAI_DATA_PATH:-./robaidata}:/data
+      - ./robaivenv:/venv:ro                        # Shared Python venv
+      - ./robaimodeltools:/robaitools/robaimodeltools  # Shared library (writable for logs)
+      - ./robaidata:/robaitools/robaidata           # Shared data
+      - ./robaidata:/data                           # Database path (DB_PATH=/data/crawl4ai_rag.db)
     environment:
       # Service URLs
       - CRAWL4AI_URL=${MCP_CRAWL4AI_URL:-http://localhost:11235}
       - KG_SERVICE_URL=${MCP_KG_SERVICE_URL:-http://localhost:8088}
-
       # Database Configuration
       - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
       - USE_MEMORY_DB=${USE_MEMORY_DB:-false}
-
       # Blocked Domain Management
       - BLOCKED_DOMAIN_KEYWORD=${BLOCKED_DOMAIN_KEYWORD:-bilbobaggins}
-
       # Logging
       - LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
-
       # MCP Server Configuration
       - MCP_TOOL_TIMEOUT=${MCP_TOOL_TIMEOUT:-60}
       - MCP_ACTION_LOG_LEVEL=${MCP_ACTION_LOG_LEVEL:-INFO}
       - MCP_ACTION_LOG_FILE=${MCP_ACTION_LOG_FILE:-/tmp/mcp.log}
       - MCP_ACTION_LOG_MAX_CONTENT=${MCP_ACTION_LOG_MAX_CONTENT:-50}
       - DISCOVERY_INTERVAL=${DISCOVERY_INTERVAL:-30}
+    command: ["python3", "-u", "core/mcp_server.py"]
     depends_on:
       crawl4ai:
         condition: service_healthy
       kg-service:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "${MCP_TCP_PORT:-3000}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # RAG API Bridge - Depends on MCP server
+  # RAG API Bridge - REST API for MCP Server
   robairagapi:
-    extends:
-      file: ./robairagapi/docker-compose.yml
-      service: robairagapi
+    build:
+      context: .
+      dockerfile: robairagapi/Dockerfile
+    image: robairagapi:latest
+    container_name: robairagapi
+    <<: [*restart-policy, *shared-environment]
+    network_mode: host
     volumes:
-      - ${ROBAI_DATA_PATH:-./robaidata}:/data
+      - ./robaivenv:/venv:ro                        # Shared Python venv
+      - ./robaimodeltools:/robaitools/robaimodeltools  # Shared library (writable for logs)
+      - ./robaidata:/robaitools/robaidata           # Shared data
+      - ./robaidata:/data                           # Database path (DB_PATH=/data/crawl4ai_rag.db)
     environment:
+      # Server Configuration
       - SERVER_HOST=${RAGAPI_SERVER_HOST:-0.0.0.0}
       - SERVER_PORT=${RAGAPI_SERVER_PORT:-8081}
+      # MCP Connection
       - MCP_SERVER_HOST=${MCP_SERVER_HOST:-localhost}
       - MCP_SERVER_PORT=${MCP_SERVER_PORT:-3000}
+      - MCP_CONNECTION_TIMEOUT=${MCP_CONNECTION_TIMEOUT:-30}
+      # Authentication
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_API_KEY_2=${OPENAI_API_KEY_2}
+      # Rate Limiting
       - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
       - ENABLE_RATE_LIMIT=${ENABLE_RATE_LIMIT:-true}
-      - MCP_CONNECTION_TIMEOUT=${MCP_CONNECTION_TIMEOUT:-30}
+      # CORS Configuration
       - ENABLE_CORS=${ENABLE_CORS:-true}
       - CORS_ORIGINS=${RAGAPI_CORS_ORIGINS:-*}
+      # Logging
       - LOG_LEVEL=${RAGAPI_LOG_LEVEL:-INFO}
+      # Database
       - CRAWL4AI_URL=${CRAWL4AI_URL:-http://localhost:11235}
       - DB_PATH=${DB_PATH:-/data/crawl4ai_rag.db}
       - USE_MEMORY_DB=${USE_MEMORY_DB:-false}
+      # Security
       - PFSENSE_IP=${PFSENSE_IP:-192.168.10.1}
       - PFSENSE_MAC=${PFSENSE_MAC:-58:9c:fc:10:ff:d8}
       - TRUSTED_LAN_SUBNET=${TRUSTED_LAN_SUBNET:-192.168.10.0/24}
@@ -117,30 +249,58 @@ services:
     depends_on:
       robaitragmcp:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  # Open WebUI - Chat Interface (Optional)
+  # ============================================================================
+  # Frontend Services
+  # ============================================================================
+
+  # Open WebUI - Chat Interface (Built from source with customizations)
   open-webui:
-    extends:
-      file: ./robaiwebui/docker-compose.yml
-      service: open-webui
+    build:
+      context: ./robaiwebui/open-webui
+      dockerfile: Dockerfile
+    image: robai-webui:latest
+    container_name: open-webui
+    <<: *restart-policy
+    ports:
+      - "${WEBUI_EXTERNAL_PORT:-80}:${WEBUI_INTERNAL_PORT:-8080}"
+    volumes:
+      - open-webui_open-webui:/app/backend/data
     environment:
       - OPENAI_API_BASE_URL=${OPENAI_API_BASE_URL:-http://192.168.10.50:8079/v1}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-sk-dummy-key}
     depends_on:
       - robairagapi
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${WEBUI_INTERNAL_PORT:-8080}/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-# Import networks from sub-projects
+# ==============================================================================
+# Networks
+# ==============================================================================
+
 networks:
   crawler_default:
-    external: true
+    name: crawler_default
   neo4j-network:
     name: neo4j-network
 
-# Import volumes from sub-projects
+# ==============================================================================
+# Volumes
+# ==============================================================================
+
 volumes:
   kg-models:
     name: kg-models
-    external: true
   robaidata:
     driver: local
     driver_opts:
@@ -148,4 +308,4 @@ volumes:
       o: bind
       device: ${PWD}/robaidata
   open-webui_open-webui:
-    external: true
+    name: open-webui_open-webui

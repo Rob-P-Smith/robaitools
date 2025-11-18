@@ -1,0 +1,61 @@
+# ============================================================================
+# Docker Build Context Exclusions
+# ============================================================================
+# Since we mount code as volumes, we don't need to COPY most of it
+# This keeps images lightweight (~200MB instead of 14GB!)
+
+# Exclude BIG mounted volumes (these are mounted at runtime, not copied)
+robaivenv/
+robaimodeltools/
+robaimultiturn/
+robaidata/
+
+# NOTE: We keep service directories so Dockerfiles can selectively COPY them
+# Each Dockerfile uses: COPY <service-dir>/ . to get only what it needs
+
+# Exclude git and version control
+.git/
+.gitignore
+.gitmodules
+**/.git/
+**/.gitignore
+
+# Exclude documentation
+docs/
+*.md
+CLAUDE.md
+SERVICE_MAPPING.md
+CONFIGURATION.md
+
+# Exclude Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Exclude development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Exclude data and cache
+*.db
+*.db-shm
+*.db-wal
+*.log
+*.tar.gz
+*.backup
+
+# Exclude Neo4j data
+robaikg/neo4j/
+
+# Exclude environment files (loaded via env_file in docker-compose)
+.env
+.env.*

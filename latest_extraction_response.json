@@ -1,0 +1,244 @@
+{
+  "entities": [
+    {
+      "text": "Ctrl",
+      "type": "Tool::KeyboardShortcut",
+      "confidence": 0.95,
+      "start": 0,
+      "end": 4
+    },
+    {
+      "text": "K",
+      "type": "Tool::KeyboardShortcut",
+      "confidence": 0.95,
+      "start": 5,
+      "end": 6
+    },
+    {
+      "text": "Search",
+      "type": "Tool::UserInterface",
+      "confidence": 0.90,
+      "start": 10,
+      "end": 16
+    },
+    {
+      "text": "Ctrl",
+      "type": "Tool::KeyboardShortcut",
+      "confidence": 0.95,
+      "start": 20,
+      "end": 24
+    },
+    {
+      "text": "K",
+      "type": "Tool::KeyboardShortcut",
+      "confidence": 0.95,
+      "start": 25,
+      "end": 26
+    },
+    {
+      "text": "Get Started",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 30,
+      "end": 39
+    },
+    {
+      "text": "Basic Usage",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 40,
+      "end": 49
+    },
+    {
+      "text": "Advanced Features",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 50,
+      "end": 62
+    },
+    {
+      "text": "Supported Models",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 63,
+      "end": 75
+    },
+    {
+      "text": "Hardware Platforms",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 76,
+      "end": 89
+    },
+    {
+      "text": "Developer Guide",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 90,
+      "end": 101
+    },
+    {
+      "text": "References",
+      "type": "Concept::Documentation",
+      "confidence": 0.85,
+      "start": 102,
+      "end": 110
+    },
+    {
+      "text": ".pdf",
+      "type": "Format::Document",
+      "confidence": 0.90,
+      "start": 111,
+      "end": 115
+    },
+    {
+      "text": "Hierarchical KV Caching (HiCache)",
+      "type": "Concept::Algorithm",
+      "confidence": 0.95,
+      "start": 117,
+      "end": 145
+    },
+    {
+      "text": "SGLang Team",
+      "type": "Organization::DevelopmentTeam",
+      "confidence": 0.90,
+      "start": 155,
+      "end": 165
+    },
+    {
+      "text": "SGLang",
+      "type": "Product::Framework",
+      "confidence": 0.95,
+      "start": 166,
+      "end": 172
+    },
+    {
+      "text": "© Copyright 2023-2025, SGLang.",
+      "type": "Legal::Copyright",
+      "confidence": 0.95,
+      "start": 173,
+      "end": 195
+    },
+    {
+      "text": "Nov 12, 2025",
+      "type": "Date::Calendar",
+      "confidence": 0.95,
+      "start": 200,
+      "end": 210
+    },
+    {
+      "text": "previous PD Disaggregation",
+      "type": "Concept::Documentation",
+      "confidence": 0.80,
+      "start": 212,
+      "end": 231
+    },
+    {
+      "text": "next SGLang HiCache Best Practices",
+      "type": "Concept::Documentation",
+      "confidence": 0.80,
+      "start": 233,
+      "end": 257
+    }
+  ],
+  "relationships": [
+    {
+      "subject": "Ctrl",
+      "predicate": "used_with",
+      "object": "K",
+      "confidence": 0.95,
+      "context": "Search `Ctrl`+`K`"
+    },
+    {
+      "subject": "Search",
+      "predicate": "triggered_by",
+      "object": "Ctrl",
+      "confidence": 0.90,
+      "context": "Search `Ctrl`+`K`"
+    },
+    {
+      "subject": "Search",
+      "predicate": "triggered_by",
+      "object": "K",
+      "confidence": 0.90,
+      "context": "Search `Ctrl`+`K`"
+    },
+    {
+      "subject": "Hierarchical KV Caching (HiCache)",
+      "predicate": "described_in",
+      "object": "Advanced Features",
+      "confidence": 0.95,
+      "context": "# Hierarchical KV Caching (HiCache)"
+    },
+    {
+      "subject": "Hierarchical KV Caching (HiCache)",
+      "predicate": "developed_by",
+      "object": "SGLang Team",
+      "confidence": 0.90,
+      "context": "By SGLang Team"
+    },
+    {
+      "subject": "SGLang",
+      "predicate": "developed_by",
+      "object": "SGLang Team",
+      "confidence": 0.90,
+      "context": "By SGLang Team"
+    },
+    {
+      "subject": "SGLang",
+      "predicate": "supports",
+      "object": "Hierarchical KV Caching (HiCache)",
+      "confidence": 0.90,
+      "context": "# Hierarchical KV Caching (HiCache)"
+    },
+    {
+      "subject": "previous PD Disaggregation",
+      "predicate": "linked_to",
+      "object": "Hierarchical KV Caching (HiCache)",
+      "confidence": 0.85,
+      "context": "[ previous PD Disaggregation ](https://docs.sglang.ai/advanced_features/pd_disaggregation.html \\"previous page\\")"
+    },
+    {
+      "subject": "next SGLang HiCache Best Practices",
+      "predicate": "linked_to",
+      "object": "Hierarchical KV Caching (HiCache)",
+      "confidence": 0.85,
+      "context": "[ next SGLang HiCache Best Practices ](https://docs.sglang.ai/advanced_features/hicache_best_practices.html \\"next page\\")"
+    },
+    {
+      "subject": "Hierarchical KV Caching (HiCache)",
+      "predicate": "documented_in",
+      "object": "Developer Guide",
+      "confidence": 0.85,
+      "context": "# Hierarchical KV Caching (HiCache)"
+    },
+    {
+      "subject": "Hierarchical KV Caching (HiCache)",
+      "predicate": "documented_in",
+      "object": "References",
+      "confidence": 0.85,
+      "context": "# Hierarchical KV Caching (HiCache)"
+    },
+    {
+      "subject": "SGLang",
+      "predicate": "maintained_by",
+      "object": "SGLang Team",
+      "confidence": 0.90,
+      "context": "By SGLang Team"
+    },
+    {
+      "subject": "Hierarchical KV Caching (HiCache)",
+      "predicate": "part_of",
+      "object": "Advanced Features",
+      "confidence": 0.90,
+      "context": "# Hierarchical KV Caching (HiCache)"
+    },
+    {
+      "subject": "Nov 12, 2025",
+      "predicate": "last_updated_on",
+      "object": "SGLang",
+      "confidence": 0.95,
+      "context": "Last updated on Nov 12, 2025."
+    }
+  ]
+}
