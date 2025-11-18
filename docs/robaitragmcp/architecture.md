@@ -7,430 +7,145 @@ nav_order: 4
 
 # Architecture
 
-System design and architecture of robaitragmcp MCP Server.
+Technical deep-dive into robaitragmcp's dynamic tool discovery and TCP-based MCP server.
 
 ## System Overview
 
+robaitragmcp is a **TCP server** (port 3000) implementing MCP protocol via JSON-RPC 2.0. Key innovation: **zero hardcoded tools** - everything discovered dynamically from robaimodeltools.
+
 ```
-┌─────────────────────────────────────────────────────┐
-│         Claude Desktop / LM-Studio / API            │
-│          (MCP Client via stdio/HTTP)                │
-└────────────────────┬────────────────────────────────┘
-                     │ JSON-RPC 2.0
-┌────────────────────▼────────────────────────────────┐
-│           MCP Server (robaitragmcp)                │
-├──────────────────────────────────────────────────────┤
-│                                                      │
-│  ┌────────────────────────────────────────────┐    │
-│  │         MCP Tools (15+ operations)         │    │
-│  │ ├─ crawl_url (Crawl4AI)                   │    │
-│  │ ├─ search (Full-text)                    │    │
-│  │ ├─ vector_search (Semantic)              │    │
-│  │ ├─ Content management (CRUD)             │    │
-│  │ └─ Tag management                        │    │
-│  └────────────────────────────────────────────┘    │
-│                     ↓                                │
-│  ┌────────────────────────────────────────────┐    │
-│  │      Processing & Pipeline Manager        │    │
-│  │ ├─ Crawl4AI client (web extraction)      │    │
-│  │ ├─ Embedding generator (vector search)   │    │
-│  │ └─ Neo4j connector (optional KG)         │    │
-│  └────────────────────────────────────────────┘    │
-│                     ↓                                │
-│  ┌────────────────────────────────────────────┐    │
-│  │        Database Layer (Storage)            │    │
-│  │ ├─ SQLite (disk/RAM mode)                 │    │
-│  │ ├─ sqlite-vec (vector indexing)           │    │
-│  │ └─ Full-text search (FTS5)                │    │
-│  └────────────────────────────────────────────┘    │
-│                                                      │
-└──────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│  MCP Clients (AI Assistants/robairagapi)│
+│  Connect via TCP to localhost:3000      │
+└──────────────┬──────────────────────────┘
+               │ JSON-RPC 2.0 (newline-delimited)
+┌──────────────▼──────────────────────────┐
+│  MCPServer (core/mcp_server.py)         │
+│  ┌───────────────────────────────────┐  │
+│  │ TCP Server (asyncio.start_server) │  │
+│  │ Port: 3000 (MCP_TCP_PORT)         │  │
+│  └───────────────────────────────────┘  │
+│  ┌───────────────────────────────────┐  │
+│  │ DiscoveryEngine                   │  │
+│  │ - Introspects robaimodeltools     │  │
+│  │ - Finds Crawl4AIRAG methods       │  │
+│  │ - Finds SearchHandler methods     │  │
+│  │ - Creates tool definitions        │  │
+│  └───────────────────────────────────┘  │
+│  ┌───────────────────────────────────┐  │
+│  │ WrapperFactory                    │  │
+│  │ - Creates DynamicMCPTool wrappers │  │
+│  │ - Handles type conversion         │  │
+│  │ - Enforces 60s timeout            │  │
+│  └───────────────────────────────────┘  │
+│  ┌───────────────────────────────────┐  │
+│  │ HealthMonitor                     │  │
+│  │ - Monitors 4 Docker containers    │  │
+│  │ - Detects restarts (every 30s)    │  │
+│  │ - Triggers tool refresh           │  │
+│  └───────────────────────────────────┘  │
+└──────────────┬──────────────────────────┘
+               │ Direct Python imports
+┌──────────────▼──────────────────────────┐
+│  robaimodeltools                        │
+│  - Crawl4AIRAG (~15 methods)            │
+│  - SearchHandler (~5 methods)           │
+│  - All methods become tools             │
+└─────────────────────────────────────────┘
 ```
 
 ## Core Components
 
-### 1. MCP Server (server.py)
+### MCPServer (mcp_server.py)
 
-**Purpose**: JSON-RPC 2.0 protocol handler for AI assistants
+Main server coordinating all components.
 
-**Key Features**:
-- Stdio-based communication (Claude Desktop)
-- HTTP endpoint support (LM-Studio)
-- Tool definition and routing
-- Request validation
-- Error handling
+**Startup:**
+1. Create server instance → Initialize components
+2. Discover tools → Store in self.tools dict
+3. Start health monitor → Monitor Docker containers
+4. Start TCP server → Listen on port 3000
+5. Ready → Log "✅ MCP Server listening"
 
-**Lifecycle**:
-```
-Initialize
-  ↓
-Load tools
-  ↓
-Connect database
-  ↓
-Listen for JSON-RPC requests
-  ↓
-Route to appropriate tool
-  ↓
-Execute and return result
-  ↓
-On shutdown: Close database connections
-```
+**Request Handling:**
+- Client connects → handle_connection()
+- Read newline-delimited JSON → parse message
+- validate_request() → (method, params, id)
+- Route to handler (initialize/tools/list/tools/call)
+- Execute and return response → Send JSON + "\n"
 
-### 2. Database Manager (database.py)
+### DiscoveryEngine (discovery_engine.py)
 
-**Purpose**: SQLite storage with dual-mode operation
+Dynamically discovers tools from robaimodeltools.
 
-**Dual Modes**:
+**Process:**
+- Import robaimodeltools (graceful fail if unavailable)
+- Discover from Crawl4AIRAG class → crawler_* tools
+- Discover from SearchHandler class → search_handler_* tools
+- Use inspect.getmembers() to find public methods
+- Extract function info (signature, docstring, params)
+- Create tool definitions with JSON schema
 
-**Disk Mode**:
-- SQLite database file on disk
-- Full persistence
-- Survives process restart
-- Automatic backups
+### WrapperFactory (wrapper_factory.py)
 
-**RAM Mode**:
-- In-memory SQLite
-- 10-50x faster
-- Differential sync to disk
-- Lost on restart (without sync)
+Creates executable MCP tool wrappers.
 
-**Key Operations**:
-- Store crawled content with metadata
-- Index for full-text search (FTS5)
-- Manage embeddings (sqlite-vec)
-- Handle tags and sessions
-- Automatic retention policy enforcement
+**DynamicMCPTool:**
+- Stores tool metadata (name, signature, docstring)
+- Generates JSON schema from function signature
+- execute(arguments) with 60s timeout enforcement
+- Handles sync/async functions with asyncio.wait_for
+- Returns MCP-compliant format: {content: [...], isError: bool}
 
-### 3. Crawl4AI Client (crawl4ai_client.py)
+### HealthMonitor (health_monitor.py)
 
-**Purpose**: Web content extraction interface
+Monitors Docker containers and triggers tool refresh.
 
-**Integration**:
-- HTTP client to Crawl4AI service
-- Async/await for non-blocking I/O
-- Timeout handling
-- Error recovery
-- Content cleaning and markdown conversion
+**Monitored:** robaicrawler, robaineo4j, robaikg, robairagapi
 
-**Process**:
-```
-URL → [Crawl4AI Service] → HTML
-                           ↓
-                    [Clean & Parse]
-                           ↓
-                    [Convert to Markdown]
-                           ↓
-                    [Extract Metadata]
-                           ↓
-                    Return (title, content, metadata)
-```
-
-### 4. Embedding Generator (embeddings.py)
-
-**Purpose**: Generate vector embeddings for semantic search
-
-**Model**: all-MiniLM-L6-v2 (384-dimensional vectors)
-
-**Process**:
-```
-Text Input
-   ↓
-[Chunk text if > max_length]
-   ↓
-[Generate embeddings via transformer]
-   ↓
-[Store in sqlite-vec]
-   ↓
-[Enable vector similarity search]
-```
-
-**Features**:
-- Lazy loading (first use)
-- Efficient batch processing
-- Vector similarity search
-- Distance-based ranking
-
-### 5. Neo4j Connector (neo4j_connector.py)
-
-**Purpose**: Optional knowledge graph integration
-
-**Features** (when enabled):
-- Entity extraction from crawled content
-- Relationship mapping
-- Graph-based search
-- Semantic expansion
-
-**Connection Pool**:
-- Async Neo4j driver
-- Connection pooling
-- Graceful error handling
-
-### 6. Tool Implementations (tools/)
-
-**Tool Categories**:
-
-**Web Operations** (crawl_url):
-- Extract page content
-- Wait for dynamic elements
-- Handle authentication
-- Parse and clean HTML
-
-**Search** (search, vector_search):
-- Full-text search via FTS5
-- Semantic similarity via embeddings
-- Tag filtering
-- Result ranking
-
-**Memory** (get_memory, update_memory, delete_memory):
-- CRUD operations on stored content
-- Metadata management
-- Retention policy enforcement
-
-**Tags** (create_tag, list_tags):
-- Hierarchical tagging
-- Content organization
-- Filtering support
-
-**Admin** (export_content, clear_memory):
-- Data export (markdown, JSON, HTML)
-- Bulk operations
-- Database cleanup
+**Process:**
+- Every 30s: Check container StartedAt timestamps
+- Compare with stored times → Detect restarts
+- On restart: Trigger _refresh_tools()
+- Re-discover and replace self.tools dict
+- Graceful handling if Docker unavailable
 
 ## Data Flow
 
-### Content Ingestion
+**Complete Request:**
+1. Client connects TCP port 3000
+2. Send initialize → Get capabilities
+3. Send tools/list → Get all tools
+4. Send tools/call → Execute tool → Get result
+5. Connection stays open for multiple requests
 
-```
-1. User requests: crawl_url("https://example.com")
-   ↓
-2. MCP Server routes to crawl_url tool
-   ↓
-3. Crawl4AI Client extracts content
-   {url, title, content, metadata}
-   ↓
-4. Database Manager stores:
-   - Full content (content table)
-   - Chunks (for vector search)
-   - Metadata (tags, timestamps)
-   ↓
-5. Embedding Generator creates vectors
-   ↓
-6. sqlite-vec indexes embeddings
-   ↓
-7. Return success response
-```
+**Tool Execution:**
+- tools/call → MCPServer.call_tool()
+- Look up tool → DynamicMCPTool.execute()
+- Type conversion → Execute with timeout
+- Format result → Return to client
 
-### Search Operations
+**Container Restart:**
+- Container restarts → Health monitor detects
+- Trigger callback → _refresh_tools()
+- Re-discover → Replace tools → Continue serving
 
-```
-User Query: "asyncio patterns"
-   ↓
-Full-Text Search:
-  SELECT * FROM content_fts
-  WHERE content MATCH "asyncio patterns"
-  LIMIT 5
-   ↓
-Vector Search (parallel):
-  [Generate embedding for query]
-   ↓
-  SELECT * FROM embeddings
-  WHERE distance < threshold
-  ORDER BY distance
-  LIMIT 5
-   ↓
-Merge and rank results
-   ↓
-Return combined results
-```
+## Performance
 
-### Memory Management
+- Tool discovery: ~1s at startup (25 tools)
+- Tool call overhead: < 10ms
+- Health check: Every 30s (~50ms)
+- Timeout: 60s default (configurable)
+- TCP: Multiple concurrent connections
 
-**Retention Policy Enforcement**:
-```
-Every hour:
-  IF retention_policy = "session":
-    DELETE content WHERE session_id != current_session
-      AND age > session_timeout
+## Design Decisions
 
-  IF retention_policy = "30day":
-    DELETE content WHERE age > 30 days
-
-  IF retention_policy = "permanent":
-    Do nothing (manual deletion only)
-```
-
-**Session Tracking**:
-- Session ID assigned on startup
-- Auto-cleanup on timeout
-- Configurable timeout (default: 24 hours)
-
-## Design Patterns
-
-### 1. Tool Factory Pattern
-
-Register tools dynamically:
-
-```python
-@tool
-def crawl_url(url: str, timeout: int = 30):
-    """Extract web content"""
-    return crawl4ai_client.extract(url, timeout)
-
-# Tools registered automatically
-```
-
-### 2. Async/Await Throughout
-
-All I/O operations non-blocking:
-
-```python
-async def search(query: str):
-    # Parallel searches
-    fulltext = await db.full_text_search(query)
-    semantic = await embeddings.vector_search(query)
-    return merge_results(fulltext, semantic)
-```
-
-### 3. Graceful Degradation
-
-Service continues if optional components fail:
-
-```python
-try:
-    kg_results = await neo4j.expand_entities(entities)
-except Neo4jConnectionError:
-    kg_results = []  # Continue without KG
-```
-
-### 4. Configuration Injection
-
-Central config accessed throughout:
-
-```python
-class Database:
-    def __init__(self, config: Config):
-        self.mode = config.database_mode
-        self.path = config.database_path
-        self.max_size = config.max_ram_size
-```
-
-## Performance Characteristics
-
-| Operation | Time | Mode | Notes |
-|-----------|------|------|-------|
-| crawl_url | 2-10s | Both | Depends on page size |
-| search (FTS) | <100ms | Both | Indexed search |
-| vector_search | 100-500ms | Both | Embedding + similarity |
-| store content | 10-100ms | Disk | Write I/O |
-| store content | <1ms | RAM | In-memory |
-| startup | 1-5s | Both | Load config, init DB |
-
-**Scalability**:
-- RAM mode: Limited by available memory
-- Disk mode: Unlimited growth (I/O limited)
-- Concurrent requests: Limited by CPU cores
-- Vector search: O(n) similarity computation
-
-## Security Architecture
-
-### Input Validation
-
-1. **URL Validation**: Must start with http(s)
-2. **Query Length**: Max 10,000 characters
-3. **Rate Limiting**: Per-session per-tool limits
-4. **Database Injection**: Parameterized queries only
-
-### Data Protection
-
-1. **Session Isolation**: Content scoped to sessions
-2. **Retention Policies**: Auto-cleanup options
-3. **Field Encryption**: Optional for sensitive data
-4. **Access Control**: Future: per-tool permissions
-
-### API Security
-
-1. **Stdio-based (Claude)**: No network exposure
-2. **HTTP Endpoint**: Localhost only (configure firewall)
-3. **Error Messages**: Non-revealing to client
-4. **Logging**: Sensitive data redacted
-
-## Integration Points
-
-### With Claude Desktop
-
-```
-Claude → stdio → MCP Server → Tools → Database
-```
-
-### With LM-Studio
-
-```
-LM-Studio → HTTP → MCP Server → Tools → Database
-```
-
-### With Anthropic API
-
-```
-Application → MCP Client → robaitragmcp → Tools
-```
-
-### With Neo4j (Optional)
-
-```
-robaitragmcp ←→ Neo4j
-  - Extract entities from crawled content
-  - Graph-based search
-  - Relationship discovery
-```
-
-## Deployment Architectures
-
-### Single Process (Default)
-
-```
-[Claude Desktop]
-       ↓
-  [MCP Server + Tools + DB]
-       ↓
-  [SQLite (disk/RAM)]
-```
-
-### Standalone Server
-
-```
-[LM-Studio]
-       ↓
-[HTTP Client]
-       ↓
-[MCP Server + Tools + DB]
-       ↓
-[SQLite (shared disk)]
-```
-
-### Distributed (Future)
-
-```
-[Multiple Claude instances]
-           ↓
-[Load Balancer]
-           ↓
-[MCP Server Pool]
-           ↓
-[Shared Database (SQLite + replication)]
-```
-
-## Future Enhancements
-
-- Horizontal scaling with shared database
-- GraphQL API layer
-- Caching layer (Redis)
-- Advanced retention policies
-- Plugin system for custom tools
-- Kubernetes deployment
+**TCP vs stdio:** Allows multiple clients, easier testing
+**Dynamic discovery:** Single source of truth, zero maintenance
+**Health monitoring:** Auto-recovery on container restarts
+**60s timeout:** Handles deep crawling, prevents hung connections
 
 ## Next Steps
 
-- [Getting Started](getting-started.html) - Installation and setup
-- [Configuration](configuration.html) - Environment variables
-- [API Reference](api-reference.html) - Complete tool documentation
+- **Configuration:** See [Configuration](configuration.md)
+- **API Reference:** Review [API Reference](api-reference.md)

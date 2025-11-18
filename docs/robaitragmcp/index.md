@@ -1,197 +1,379 @@
 ---
 layout: default
 title: robaitragmcp
-nav_order: 5
+nav_order: 6
 has_children: true
 ---
 
 # robaitragmcp
 
-**Model Context Protocol (MCP) Server for Retrieval-Augmented Generation**
+**Zero-Hardcoded-Tools MCP Server with Dynamic Tool Discovery**
 
-A high-performance MCP server that provides AI assistants with powerful web crawling and knowledge retrieval capabilities. Integrates Crawl4AI for extraction, sqlite-vec for vector search, and optional Knowledge Graph enhancement via Neo4j.
+A Model Context Protocol (MCP) server that dynamically discovers and exposes all robaimodeltools functions to AI assistants via stdio protocol. NO hardcoded tools - everything is discovered automatically through Python introspection.
 
 ## Overview
 
-robaitragmcp bridges AI assistants (Claude, LM-Studio, etc.) with the RobAI RAG system through the Model Context Protocol. It provides seamless access to web crawling, semantic search, and relationship-based retrieval.
+robaitragmcp is a standalone microservice providing AI assistants (Claude Desktop, LM-Studio, etc.) with direct access to the robaitools RAG system through MCP protocol. The key innovation: **automatic tool discovery** eliminates manual tool definitions.
 
 ### What It Does
 
-1. **Web Crawling**
-   - Intelligent content extraction via Crawl4AI
-   - Markdown formatting with structure preservation
-   - Deep crawling with configurable depth and limits
-   - Single or batch URL operations
-   - Performance: 2-10 seconds per page
+**Dynamic Tool Discovery:**
+- Automatically finds all public methods from robaimodeltools
+- Creates MCP tool definitions on the fly
+- Updates tool registry when containers restart
+- Zero maintenance for new functions
 
-2. **Semantic Search**
-   - Fast vector similarity via SQLite + sqlite-vec
-   - Optional KG-enhanced hybrid search
-   - Multi-signal ranking (5 signals)
-   - Tag-based filtering and organization
-   - Performance: 100-500ms (vector), 500-2000ms (KG)
+**AI Assistant Integration:**
+- JSON-RPC 2.0 over stdio protocol
+- Direct Python function calls (no HTTP overhead)
+- Graceful error handling and timeouts
+- Detailed action logging
 
-3. **Knowledge Graph Integration**
-   - Optional Neo4j for relationship discovery
-   - Entity expansion via knowledge graph
-   - Relationship-based search refinement
-   - Graceful degradation if KG unavailable
-   - Performance: Additional 100-500ms for KG ops
+**Crawling & Indexing:**
+- Web content extraction via Crawl4AI
+- Automatic chunking and embedding generation
+- Deep crawling with configurable limits
+- Domain blocking for security
 
-4. **Database Modes**
-   - **RAM Mode**: 10-50x faster with in-memory operations
-   - **Disk Mode**: Full persistence with SQLite
-   - Automatic synchronization between modes
-   - Configurable for different workloads
+**Semantic Search:**
+- Fast vector similarity via SQLite + sqlite-vec
+- Optional Knowledge Graph enhancement
+- Multi-signal ranking (5 signals)
+- Tag-based filtering
 
-## Key Features
+## Key Innovation: Zero Hardcoded Tools
 
-### MCP Integration
+**Traditional MCP servers** require manual tool definitions:
+```python
+# ❌ Old way - manual maintenance required
+TOOLS = [
+    {"name": "crawl_url", "description": "...", "inputSchema": {...}},
+    {"name": "search", "description": "...", "inputSchema": {...}},
+    # ... 50+ tool definitions to maintain manually
+]
+```
 
-- **JSON-RPC 2.0 Protocol**: Over stdio for AI assistant integration
-- **Tool-based API**: Crawl, search, memory management as tools
-- **Status Endpoints**: Health checks and statistics
-- **Error Handling**: Graceful fallbacks and detailed error messages
+**robaitragmcp** uses automatic discovery:
+```python
+# ✅ New way - zero maintenance
+discovered_tools = discovery_engine.discover_all_tools()
+# Automatically finds ALL public methods from:
+#   - Crawl4AIRAG class → crawler_* tools
+#   - SearchHandler class → search_handler_* tools
+#   - Any new functions added → automatically available
+```
 
-### Performance & Reliability
+**Benefits:**
+- **No maintenance:** Add functions to robaimodeltools, they automatically become MCP tools
+- **No duplication:** Single source of truth (robaimodeltools)
+- **Always in sync:** Tool definitions match implementation
+- **Auto-updates:** Container restarts refresh tool registry
 
-- **RAM Database Mode**: 10-50x faster queries with differential sync
-- **Async Processing**: Non-blocking operations throughout
-- **Graceful Degradation**: Works without KG if unavailable
-- **Auto-cleanup**: Session management with 24-hour timeout
-- **Domain Blocking**: Wildcard-based URL filtering for security
-
-### Data Management
-
-- **3 Retention Policies**: Permanent, session-only, 30-day
-- **Tag Organization**: Flexible content categorization
-- **Chunk Management**: Automatic text splitting and embedding
-- **Bidirectional Links**: SQLite ↔ Neo4j integration
-
-## System Architecture
+## Architecture
 
 ```
-AI Assistant (Claude/LM-Studio)
-    ↓ MCP (JSON-RPC 2.0)
-┌─────────────────────────────────┐
-│ robaitragmcp (MCP Server)       │
-│ ├─ Web Crawling Tools           │
-│ ├─ Search Tools                 │
-│ ├─ Memory Management            │
-│ └─ Graph Tools                  │
-└────────────┬────────────────────┘
-             │
-   ┌─────────┼─────────┐
-   ↓         ↓         ↓
-Crawl4AI  SQLite+    Neo4j
-(11235)   sqlite-vec (7687)
-(content) (vectors)  (graph)
+AI Assistant (Claude Desktop / LM-Studio)
+    ↓ JSON-RPC 2.0 over stdio
+┌────────────────────────────────────────────┐
+│ MCP Server (robaitragmcp)                 │
+│ ┌──────────────┐  ┌───────────────────┐  │
+│ │ Discovery    │→ │ Wrapper Factory   │  │
+│ │ Engine       │  │ (creates tools)   │  │
+│ └──────────────┘  └───────────────────┘  │
+│ ┌──────────────────────────────────────┐  │
+│ │ Health Monitor                       │  │
+│ │ - Detects container restarts         │  │
+│ │ - Refreshes tool registry            │  │
+│ └──────────────────────────────────────┘  │
+│ ┌──────────────────────────────────────┐  │
+│ │ Protocol Handler (JSON-RPC)          │  │
+│ │ - initialize, tools/list, tools/call │  │
+│ └──────────────────────────────────────┘  │
+└──────────────┬─────────────────────────────┘
+               │ Direct Python imports
+┌──────────────▼─────────────────────────────┐
+│ robaimodeltools                            │
+│ - Crawl4AIRAG (crawling, indexing)        │
+│ - SearchHandler (search operations)        │
+│ - All other modules                        │
+└────────────────────────────────────────────┘
 ```
 
 ## Components
 
 ### Core Modules
 
-**rag_processor.py**: Main MCP server entry point
-- Handles JSON-RPC communication
-- Tool registration and execution
-- Error handling and logging
+**core/mcp_server.py** (Main Entry Point)
+- Implements MCP JSON-RPC 2.0 protocol
+- Handles initialize, tools/list, tools/call messages
+- Manages server lifecycle and state
+- Coordinates discovery and health monitoring
 
-**core/**: RAG pipeline implementation
-- Crawlers and scrapers
-- Vector operations
-- Search handlers
-- Graph integration
+**core/discovery_engine.py** (Dynamic Discovery)
+- Introspects robaimodeltools modules
+- Finds all public methods via Python inspect
+- Generates MCP tool schemas automatically
+- Handles graceful degradation if modules unavailable
 
-**models/**: Data structures
-- Request/response models
-- Entity and relationship models
-- Search result models
+**core/wrapper_factory.py** (Tool Wrapping)
+- Creates DynamicMCPTool instances
+- Wraps discovered functions for MCP protocol
+- Handles parameter validation and type conversion
+- Implements timeout enforcement (60s default)
 
-### Storage
+**core/protocol_handler.py** (JSON-RPC)
+- Parses JSON-RPC 2.0 messages
+- Validates request/response format
+- Generates proper error codes
+- Ensures protocol compliance
 
-**SQLite Database**:
-- Content storage with metadata
-- Vector embeddings (sqlite-vec)
-- Session management
-- Full-text search indexes
+**core/health_monitor.py** (Health Monitoring)
+- Detects container restarts (via timestamp file)
+- Triggers tool registry refresh on restart
+- Runs periodic health checks (30s default)
+- Calls restart callback when needed
 
-**Neo4j Graph** (optional):
-- Entity nodes with metadata
-- Relationship edges with types
-- Document hierarchy
-- Full-text search capability
+### Utilities
+
+**utils/mcp_logger.py** (Action Logging)
+- Dedicated MCP action log (/tmp/robaimcp.log)
+- Logs all tool calls with parameters
+- Truncates large outputs for readability
+- Configurable log levels
+
+**utils/introspection.py** (Function Analysis)
+- Extracts function signatures
+- Parses docstrings for descriptions
+- Generates JSON schema for parameters
+- Identifies public vs private methods
+
+## Discovered Tools
+
+Tools are automatically discovered from robaimodeltools. Typical tools include:
+
+**Crawler Tools** (`crawler_*`):
+- `crawler_crawl_url` - Crawl single URL
+- `crawler_crawl_urls_batch` - Crawl multiple URLs
+- `crawler_deep_crawl` - Recursive crawling
+- `crawler_search_knowledge` - Search knowledge base
+- `crawler_add_blocked_domain` - Block domain patterns
+- `crawler_remove_blocked_domain` - Unblock domains
+- Plus ~10 more methods from Crawl4AIRAG class
+
+**Search Tools** (`search_handler_*`):
+- `search_handler_search` - Semantic search
+- `search_handler_hybrid_search` - Vector + graph search
+- Plus other SearchHandler methods
+
+**Dynamic Updates:**
+- New methods in robaimodeltools automatically appear as tools
+- No code changes needed in robaitragmcp
+- Tool count varies based on robaimodeltools version
+
+## Communication Protocol
+
+**MCP uses JSON-RPC 2.0 over stdio:**
+
+**Initialize:**
+```json
+// Client → Server
+{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+  "protocolVersion": "0.1.0",
+  "clientInfo": {"name": "Claude Desktop"}
+}}
+
+// Server → Client
+{"jsonrpc": "2.0", "id": 1, "result": {
+  "protocolVersion": "0.1.0",
+  "serverInfo": {"name": "robai-mcp-server", "version": "1.0.0"},
+  "capabilities": {"tools": {}}
+}}
+```
+
+**List Tools:**
+```json
+// Client → Server
+{"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+
+// Server → Client (returns ALL discovered tools)
+{"jsonrpc": "2.0", "id": 2, "result": {
+  "tools": [
+    {
+      "name": "crawler_crawl_url",
+      "description": "Crawl a single URL and extract content",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to crawl"},
+          "tags": {"type": "string", "description": "Comma-separated tags"},
+          "retention_policy": {"type": "string", "description": "permanent/session/days30"}
+        },
+        "required": ["url"]
+      }
+    }
+    // ... all other discovered tools
+  ]
+}}
+```
+
+**Call Tool:**
+```json
+// Client → Server
+{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+  "name": "crawler_crawl_url",
+  "arguments": {"url": "https://docs.python.org", "tags": "python,docs"}
+}}
+
+// Server → Client (after executing function)
+{"jsonrpc": "2.0", "id": 3, "result": {
+  "content": [
+    {"type": "text", "text": "Successfully crawled URL and stored 15 chunks"}
+  ]
+}}
+```
+
+## Integration Points
+
+### AI Assistants
+
+**Claude Desktop:**
+- Configure in `claude_desktop_config.json`
+- Uses stdio transport
+- Tools appear automatically in Claude UI
+
+**LM-Studio:**
+- Configure in MCP settings
+- Local model + robaitools RAG
+- Direct function execution
+
+### Backend Services
+
+**Depends On:**
+- robaimodeltools (shared library, direct import)
+- Optional: Crawl4AI service (port 11235)
+- Optional: KG service (port 8088)
+- Optional: Neo4j (port 7687)
+
+**Used By:**
+- robairagapi (wraps MCP tools as REST API)
+- AI assistants (direct MCP protocol)
 
 ## Statistics
 
-- **Total Lines**: ~3,500 lines of Python code
-- **Core Modules**: 12+ main modules
-- **MCP Tools**: 15+ tools available to AI assistants
-- **Response Times**: 100ms-10s depending on operation
-- **Database**: SQLite (required) + Neo4j (optional)
-- **Memory Efficiency**: 10-50x faster with RAM mode
+**Codebase:**
+- Main server: ~500 lines (mcp_server.py)
+- Discovery engine: ~200 lines (discovery_engine.py)
+- Total: ~1,500 lines across all modules
+- Discovers: 20-30 tools (varies by robaimodeltools version)
+
+**Performance:**
+- Tool discovery: < 1 second at startup
+- Tool call overhead: < 10ms
+- Timeout enforcement: 60 seconds (configurable)
+- Health check interval: 30 seconds (configurable)
+
+**Reliability:**
+- Graceful degradation if robaimodeltools unavailable
+- Auto-recovery on container restarts
+- Error isolation (tool failures don't crash server)
+- Detailed logging for troubleshooting
 
 ## Quick Start
 
 ### Docker Deployment (Recommended)
 
 ```bash
-cd robaitragmcp
-cp .env.example .env
-docker compose up -d
+cd /home/robiloo/Documents/robaitools
+docker compose up -d robaitragmcp
 ```
 
 ### Local Development
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-pip install torch --index-url https://download.pytorch.org/whl/cpu
-python3 core/rag_processor.py
+cd robaitragmcp
+python3 -u core/mcp_server.py
 ```
 
-### Integration with Claude Desktop
+### Test with Echo
 
-```json
-{
-  "mcpServers": {
-    "robai-rag": {
-      "command": "/path/to/.venv/bin/python3",
-      "args": ["/path/to/robaitragmcp/core/rag_processor.py"],
-      "env": {
-        "CRAWL4AI_URL": "http://localhost:11235",
-        "KG_SERVICE_URL": "http://localhost:8088",
-        "USE_MEMORY_DB": "true"
-      }
-    }
-  }
-}
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | \
+  python3 -u core/mcp_server.py
 ```
+
+## Configuration
+
+**Environment Variables:**
+- `DISCOVERY_INTERVAL`: Seconds between health checks (default: 30)
+- `CRAWL4AI_URL`: Crawl4AI service URL (default: http://localhost:11235)
+- `USE_MEMORY_DB`: RAM mode for SQLite (default: true)
+- `LOG_LEVEL`: Logging verbosity (default: INFO)
+
+**File Locations:**
+- Main log: `/tmp/robaimcp.log`
+- Health timestamp: `/tmp/mcp_start_time.txt`
+- Database: `/data/crawl4ai_rag.db` (via robaimodeltools)
 
 ## Use Cases
 
-**AI-Powered Research**:
-- Crawl documentation and build knowledge base
-- Search across crawled content with semantic understanding
-- Discover relationships between concepts
-- Answer questions with cited sources
+**AI-Powered Research:**
+- Claude crawls documentation automatically
+- Builds searchable knowledge base
+- Answers questions with citations
+- Discovers related concepts via KG
 
-**Knowledge Management**:
-- Build searchable document libraries
-- Organize content with tags and retention policies
-- Track where information appears in documents
-- Power chatbots with current knowledge
+**Knowledge Management:**
+- Organize content with tags
+- Manage retention policies
+- Track content updates
+- Power chatbots with current info
 
-**Integration Points**:
-- Claude Desktop integration for AI workflows
-- LM-Studio integration for local models
-- Backend for robairagapi REST bridge
-- Feeds into robaimodeltools RAG pipeline
+**Development Workflow:**
+- Local LLM + robaitools integration
+- Direct function access (no HTTP)
+- Real-time tool updates
+- Debugging with detailed logs
+
+## Related Components
+
+**Upstream:**
+- robaimodeltools - Core RAG logic (direct import)
+- Crawl4AI - Web content extraction (HTTP)
+- Neo4j - Knowledge graph (Bolt protocol)
+
+**Downstream:**
+- robairagapi - REST API wrapper (uses same tools)
+- AI assistants - MCP protocol clients
+
+**Shared:**
+- robaidata - SQLite database (file access)
+- Taxonomy - Entity type definitions (file access)
 
 ## Next Steps
 
-- [Getting Started](getting-started.html) - Installation and setup
-- [Configuration](configuration.html) - Environment configuration
-- [API Reference](api-reference.html) - MCP tools and usage
-- [Architecture](architecture.html) - System design and patterns
+1. **Getting Started:** See [Getting Started](getting-started.md) for installation and setup
+2. **Configuration:** Review [Configuration](configuration.md) for environment variables
+3. **Architecture:** Check [Architecture](architecture.md) for technical deep dive
+4. **API Reference:** Browse [API Reference](api-reference.md) for discovered tools
+
+## Advantages Over Manual Tool Definitions
+
+**Development Speed:**
+- Add function to robaimodeltools → automatically available as tool
+- No manual schema writing
+- No synchronization overhead
+
+**Maintenance:**
+- Single source of truth
+- No duplicate definitions
+- Auto-updates on restart
+
+**Reliability:**
+- Schema matches implementation
+- Type safety from function signatures
+- Automated documentation from docstrings
+
+**Flexibility:**
+- Works with any robaimodeltools version
+- Gracefully handles missing modules
+- Scales to hundreds of tools effortlessly

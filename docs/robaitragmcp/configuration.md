@@ -2,387 +2,200 @@
 layout: default
 title: Configuration
 parent: robaitragmcp
-nav_order: 2
+nav_order: 3
 ---
 
 # Configuration
 
-Complete configuration guide for robaitragmcp MCP Server.
+Environment configuration for robaitragmcp MCP server.
 
 ## Environment Variables
 
-### Database Configuration
-
-#### ROBAI_DATABASE_MODE
-
-**Default**: `disk`
-
-**Description**: Storage backend mode
-
-**Options**:
-- `disk` - SQLite on disk (persistent)
-- `ram` - In-memory SQLite (fast, volatile)
-
-**Example**:
-```bash
-ROBAI_DATABASE_MODE=disk
-```
-
-#### ROBAI_DATABASE_PATH
-
-**Default**: `./data/rag.db`
-
-**Description**: SQLite database file location (disk mode only)
-
-**Example**:
-```bash
-ROBAI_DATABASE_PATH=/var/lib/robai/rag.db
-```
-
-#### ROBAI_MAX_RAM_SIZE
-
-**Default**: `1GB`
-
-**Description**: Maximum memory for RAM mode
-
-**Example**:
-```bash
-ROBAI_MAX_RAM_SIZE=4GB
-```
-
-### Crawl4AI Configuration
-
-#### ROBAI_CRAWL4AI_URL
-
-**Default**: `http://localhost:5037`
-
-**Description**: Crawl4AI service endpoint
-
-**Example**:
-```bash
-ROBAI_CRAWL4AI_URL=http://crawl4ai:5037
-```
-
-#### ROBAI_CRAWL4AI_TIMEOUT
-
-**Default**: `30`
-
-**Description**: Crawl timeout in seconds
-
-**Example**:
-```bash
-ROBAI_CRAWL4AI_TIMEOUT=60
-```
-
-### Retention & Session Configuration
-
-#### ROBAI_RETENTION_POLICY
-
-**Default**: `permanent`
-
-**Description**: How long to keep content
-
-**Options**:
-- `permanent` - Keep indefinitely
-- `session` - Keep until session ends
-- `30day` - Auto-delete after 30 days
-
-**Example**:
-```bash
-ROBAI_RETENTION_POLICY=30day
-```
-
-#### ROBAI_SESSION_TIMEOUT
-
-**Default**: `86400`
-
-**Description**: Session timeout in seconds (24 hours)
-
-**Example**:
-```bash
-ROBAI_SESSION_TIMEOUT=86400
-```
-
-### Knowledge Graph Configuration (Optional)
-
-#### ROBAI_ENABLE_KNOWLEDGE_GRAPH
-
-**Default**: `false`
-
-**Description**: Enable Neo4j knowledge graph integration
-
-**Example**:
-```bash
-ROBAI_ENABLE_KNOWLEDGE_GRAPH=true
-```
-
-#### NEO4J_URI
-
-**Default**: `bolt://localhost:7687`
-
-**Description**: Neo4j connection URI
-
-**Example**:
-```bash
-NEO4J_URI=bolt://neo4j:7687
-```
-
-#### NEO4J_USER
-
-**Default**: `neo4j`
-
-**Description**: Neo4j username
-
-**Example**:
-```bash
-NEO4J_USER=neo4j
-```
-
-#### NEO4J_PASSWORD
-
-**Default**: `knowledge_graph_2024`
-
-**Description**: Neo4j password
-
-**Example**:
-```bash
-NEO4J_PASSWORD=secure_password
-```
-
 ### Server Configuration
 
-#### MCP_SERVER_NAME
+**MCP_TCP_PORT**
+- Type: Integer
+- Default: `3000`
+- Description: TCP port for MCP server
+- Example: `MCP_TCP_PORT=3000`
 
-**Default**: `robaitragmcp`
+**DISCOVERY_INTERVAL**
+- Type: Integer (seconds)
+- Default: `30`
+- Description: Health check interval for container monitoring
+- Example: `DISCOVERY_INTERVAL=60`
 
-**Description**: MCP server identifier
+**MCP_TOOL_TIMEOUT**
+- Type: Integer (seconds)
+- Default: `60`
+- Description: Timeout for tool execution
+- Example: `MCP_TOOL_TIMEOUT=120`
 
-**Example**:
+### Dependency Configuration
+
+**CRAWL4AI_URL**
+- Type: String
+- Default: `http://localhost:11235`
+- Description: Crawl4AI service URL (passed to discovered tools)
+- Example: `CRAWL4AI_URL=http://192.168.10.50:11235`
+
+**USE_MEMORY_DB**
+- Type: Boolean
+- Default: `true`
+- Description: RAM mode for SQLite (via robaimodeltools)
+- Example: `USE_MEMORY_DB=false`
+
+### Logging Configuration
+
+**LOG_LEVEL**
+- Type: String
+- Default: `INFO`
+- Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`
+- Description: Logging verbosity
+- Example: `LOG_LEVEL=DEBUG`
+
+**Log Locations:**
+- Main log: `/tmp/robaimcp.log`
+- Also logs to stderr (Docker logs)
+- MCP action logging included
+
+## Configuration Profiles
+
+### Development Profile
+
 ```bash
-MCP_SERVER_NAME=robaitragmcp
-```
-
-#### ROBAI_DEBUG
-
-**Default**: `false`
-
-**Description**: Enable debug logging
-
-**Example**:
-```bash
-ROBAI_DEBUG=true
-```
-
-#### ROBAI_LOG_LEVEL
-
-**Default**: `INFO`
-
-**Description**: Logging verbosity
-
-**Options**: `DEBUG`, `INFO`, `WARNING`, `ERROR`
-
-**Example**:
-```bash
-ROBAI_LOG_LEVEL=DEBUG
-```
-
-## Configuration Examples
-
-### Development Configuration
-
-```bash
-# Database
-ROBAI_DATABASE_MODE=ram
-ROBAI_MAX_RAM_SIZE=2GB
-
-# Crawl4AI
-ROBAI_CRAWL4AI_URL=http://localhost:5037
-ROBAI_CRAWL4AI_TIMEOUT=30
-
-# Session
-ROBAI_RETENTION_POLICY=permanent
-ROBAI_SESSION_TIMEOUT=86400
-
 # Server
-ROBAI_DEBUG=true
-ROBAI_LOG_LEVEL=DEBUG
+MCP_TCP_PORT=3000
+LOG_LEVEL=DEBUG
+
+# Discovery
+DISCOVERY_INTERVAL=60  # Check less frequently
+MCP_TOOL_TIMEOUT=120   # Allow more time for debugging
+
+# Dependencies
+CRAWL4AI_URL=http://localhost:11235
+USE_MEMORY_DB=false    # Disk mode for easier debugging
 ```
 
-### Production Configuration
+### Production Profile
 
 ```bash
-# Database
-ROBAI_DATABASE_MODE=disk
-ROBAI_DATABASE_PATH=/var/lib/robai/rag.db
-
-# Crawl4AI
-ROBAI_CRAWL4AI_URL=http://crawl4ai:5037
-ROBAI_CRAWL4AI_TIMEOUT=60
-
-# Session
-ROBAI_RETENTION_POLICY=30day
-ROBAI_SESSION_TIMEOUT=86400
-
-# Knowledge Graph
-ROBAI_ENABLE_KNOWLEDGE_GRAPH=true
-NEO4J_URI=bolt://neo4j:7687
-NEO4J_PASSWORD=<secure-password>
-
 # Server
-ROBAI_DEBUG=false
-ROBAI_LOG_LEVEL=INFO
+MCP_TCP_PORT=3000
+LOG_LEVEL=INFO
+
+# Discovery
+DISCOVERY_INTERVAL=30  # Normal frequency
+MCP_TOOL_TIMEOUT=60    # Standard timeout
+
+# Dependencies
+CRAWL4AI_URL=http://localhost:11235
+USE_MEMORY_DB=true     # RAM mode for performance
 ```
 
-### High-Performance Configuration
+### Testing Profile
 
 ```bash
-# Database (RAM for speed)
-ROBAI_DATABASE_MODE=ram
-ROBAI_MAX_RAM_SIZE=8GB
+# Server
+MCP_TCP_PORT=3001      # Different port for testing
+LOG_LEVEL=DEBUG
 
-# Crawl4AI
-ROBAI_CRAWL4AI_TIMEOUT=120
+# Discovery
+DISCOVERY_INTERVAL=10  # Faster checks for testing
+MCP_TOOL_TIMEOUT=30    # Shorter timeout for quick feedback
 
-# Aggressive session management
-ROBAI_RETENTION_POLICY=session
-ROBAI_SESSION_TIMEOUT=3600
-
-# Knowledge Graph with caching
-ROBAI_ENABLE_KNOWLEDGE_GRAPH=true
+# Dependencies
+CRAWL4AI_URL=http://localhost:11235
+USE_MEMORY_DB=true
 ```
 
-## Configuration Validation
+## Docker Compose Configuration
 
-Check configuration on startup:
+**Container Settings:**
+```yaml
+robaitragmcp:
+  container_name: robaitragmcp
+  network_mode: host
+  ports:
+    - "3000:3000"
+  volumes:
+    - ../robaivenv:/robaivenv
+    - ../robaimodeltools:/robaimodeltools
+  environment:
+    - MCP_TCP_PORT=3000
+    - DISCOVERY_INTERVAL=30
+    - MCP_TOOL_TIMEOUT=60
+```
+
+## Health Monitoring Configuration
+
+**Monitored Containers:**
+- robaicrawler (Crawl4AI service)
+- robaineo4j (Neo4j database)
+- robaikg (KG extraction service)
+- robairagapi (REST API wrapper)
+
+**Health Check Behavior:**
+- Interval: DISCOVERY_INTERVAL (default 30s)
+- Detects container restarts via Docker API
+- Triggers tool refresh on restart
+- Graceful degradation if Docker unavailable
+
+**To Disable Monitoring:**
+- Health monitor auto-disables if Docker unavailable
+- No configuration needed - handles gracefully
+
+## Performance Tuning
+
+### Optimize for Speed
 
 ```bash
-python -c "from robaitragmcp.config import settings; print(f'Mode: {settings.database_mode}')"
+MCP_TOOL_TIMEOUT=30        # Faster timeout
+DISCOVERY_INTERVAL=60      # Less frequent checks
+USE_MEMORY_DB=true         # RAM mode
 ```
 
-## Common Configuration Patterns
-
-### Multiple Environments
-
-Create environment-specific files:
+### Optimize for Large Operations
 
 ```bash
-.env.development
-.env.staging
-.env.production
-
-# Use appropriate one
-cp .env.production .env
+MCP_TOOL_TIMEOUT=180       # 3-minute timeout for deep crawling
+DISCOVERY_INTERVAL=30      # Normal monitoring
+USE_MEMORY_DB=true         # RAM mode
 ```
 
-### Docker Deployment
-
-Pass via environment variables:
+### Optimize for Debugging
 
 ```bash
-docker run -e ROBAI_DATABASE_MODE=disk \
-           -e ROBAI_DATABASE_PATH=/data/rag.db \
-           robaitragmcp:latest
-```
-
-### Claude Desktop Integration
-
-Store in `~/.claude/config.json`:
-
-```json
-{
-  "mcpServers": {
-    "robaitragmcp": {
-      "command": "mcp",
-      "args": ["run", "robaitragmcp.server"],
-      "env": {
-        "ROBAI_DATABASE_MODE": "disk",
-        "ROBAI_DATABASE_PATH": "/home/user/.robai/rag.db",
-        "ROBAI_DEBUG": "false"
-      }
-    }
-  }
-}
+LOG_LEVEL=DEBUG            # Verbose logging
+MCP_TOOL_TIMEOUT=300       # Long timeout to prevent interruption
+DISCOVERY_INTERVAL=60      # Less noise in logs
 ```
 
 ## Troubleshooting Configuration
 
-### Invalid Mode
+### Issue: Tools timeout frequently
 
-**Problem**: `ROBAI_DATABASE_MODE=invalid`
-
-**Solution**:
+**Solution:**
 ```bash
-ROBAI_DATABASE_MODE=disk  # or 'ram'
+MCP_TOOL_TIMEOUT=120
 ```
 
-### Path Permissions
+### Issue: Health monitor too noisy
 
-**Problem**: Cannot write to `ROBAI_DATABASE_PATH`
-
-**Solution**:
+**Solution:**
 ```bash
-# Check permissions
-ls -la /var/lib/robai/
-
-# Fix if needed
-chmod 755 /var/lib/robai/
+DISCOVERY_INTERVAL=60
+LOG_LEVEL=WARNING
 ```
 
-### Neo4j Connection
+### Issue: Memory usage too high
 
-**Problem**: Cannot connect to Neo4j
-
-**Solution**:
+**Solution:**
 ```bash
-# Verify URI format
-NEO4J_URI=bolt://localhost:7687  # Correct
-
-# Test connection
-python -c "from neo4j import GraphDatabase; GraphDatabase.driver('bolt://localhost:7687', auth=('neo4j', 'password')).verify_connectivity()"
-```
-
-### Memory Issues
-
-**Problem**: Out of memory with RAM mode
-
-**Solution**:
-```bash
-# Reduce RAM allocation
-ROBAI_MAX_RAM_SIZE=512MB
-
-# Or switch to disk
-ROBAI_DATABASE_MODE=disk
-```
-
-## Performance Tuning
-
-### For Speed
-
-```bash
-ROBAI_DATABASE_MODE=ram
-ROBAI_MAX_RAM_SIZE=8GB
-ROBAI_SESSION_TIMEOUT=1800  # Shorter sessions
-```
-
-### For Persistence
-
-```bash
-ROBAI_DATABASE_MODE=disk
-ROBAI_RETENTION_POLICY=permanent
-ROBAI_DATABASE_PATH=/mnt/shared/rag.db  # Fast storage
-```
-
-### For Scale
-
-```bash
-# Multiple instances with shared Neo4j
-ROBAI_DATABASE_MODE=disk
-ROBAI_ENABLE_KNOWLEDGE_GRAPH=true
-NEO4J_URI=bolt://neo4j-cluster:7687
+USE_MEMORY_DB=false
 ```
 
 ## Next Steps
 
-- [Getting Started](getting-started.html) - Installation and usage
-- [API Reference](api-reference.html) - MCP tools documentation
-- [Architecture](architecture.html) - System design
+- **Architecture:** See [Architecture](architecture.md)
+- **API Reference:** Review [API Reference](api-reference.md)

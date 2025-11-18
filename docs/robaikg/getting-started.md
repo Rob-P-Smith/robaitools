@@ -2,710 +2,701 @@
 layout: default
 title: Getting Started
 parent: robaikg
-nav_order: 1
+nav_order: 2
 ---
 
 # Getting Started with robaikg
 
-Complete installation and setup guide for the Knowledge Graph Extraction and Management Service.
+Step-by-step guide to deploying and using the knowledge graph extraction service.
 
-## Prerequisites
+## Quick Start
 
-Before installing robaikg, ensure you have:
+### 1. Prerequisites
 
-- **Python 3.11+** installed
-- **Docker** running (for Neo4j)
-- **GPU** (optional, but recommended for GLiNER - CPU mode supported)
-- **vLLM backend** running on port 8078 (for relationship extraction)
-- **At least 8GB RAM** (4GB Neo4j, 2GB GLiNER, 2GB kg-service)
+**Required Services:**
+- Docker and Docker Compose
+- Neo4j 5.25+ running (included in compose)
+- vLLM server running on port 8078 (for LLM extraction)
+- SQLite database at `/data/crawl4ai_rag.db`
 
-## Installation
+**System Requirements:**
+- RAM: 4GB minimum, 8GB recommended
+- Disk: 2GB for Neo4j data
+- CPU: 2+ cores recommended
 
-### Step 1: Navigate to Directory
+### 2. Environment Configuration
 
-```bash
-cd /path/to/robaitools/robaikg
-```
-
-### Step 2: Install Dependencies
-
-```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install Python packages
-pip install -r requirements.txt
-```
-
-**Key Dependencies**:
-- FastAPI 0.115+ - Web framework
-- neo4j 5.13+ - Graph database driver
-- torch - Deep learning framework (CPU or GPU)
-- transformers - Hugging Face models
-- pydantic - Data validation
-- httpx - Async HTTP client
-- python-dotenv - Environment configuration
-
-### Step 3: Configure Environment
-
-Create a `.env` file with your configuration:
+Create or verify `.env` file in repository root:
 
 ```bash
-# Copy the example configuration
-cp .env.example .env
-
-# Edit with your settings
-nano .env
-```
-
-**Minimum Required Configuration**:
-
-```bash
-# Service Configuration
-SERVICE_NAME=kg-service
-API_HOST=0.0.0.0
-API_PORT=8088
-DEBUG=false
-LOG_LEVEL=INFO
-
 # Neo4j Configuration
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=knowledge_graph_2024
-NEO4J_DATABASE=neo4j
+NEO4J_HEAP_MAX_SIZE=16G
+NEO4J_PAGECACHE_SIZE=2G
 
-# vLLM Configuration (for relationship extraction)
-VLLM_BASE_URL=http://localhost:8078
+# kg-service Configuration
+KG_SERVICE_PORT=8088
+AUGMENT_LLM_URL=http://localhost:8078
 VLLM_TIMEOUT=1800
 
-# GLiNER Configuration (entity extraction)
-GLINER_MODEL=urchade/gliner_large-v2.1
-GLINER_THRESHOLD=0.45
+# Entity/Relationship Thresholds
+ENTITY_MIN_CONFIDENCE=0.4
+RELATION_MIN_CONFIDENCE=0.45
+
+# Background Workers
+KG_NUM_WORKERS=1
+KG_POLL_INTERVAL=5.0
+KG_DASHBOARD_ENABLED=true
+
+# Authentication
+OPENAI_API_KEY=your_api_key_here
+
+# Database
+DB_PATH=/data/crawl4ai_rag.db
 ```
 
-See [Configuration](configuration.html) for all available options.
+### 3. Start Services
 
-### Step 4: Start Neo4j Database
-
-**Docker Deployment** (Recommended):
-
+**Start Neo4j and kg-service:**
 ```bash
-# Start Neo4j with docker-compose
-cd /path/to/robaitools/robaikg
-docker compose up -d neo4j
+cd /home/robiloo/Documents/robaitools
+docker compose up -d robaikg robaineo4j
 ```
 
-**Verify Neo4j is running**:
-
+**Verify services started:**
 ```bash
-# Check container status
-docker ps | grep neo4j
+docker compose ps
 
-# Access Neo4j Browser
-open http://localhost:7474
-
-# Login with username: neo4j, password: knowledge_graph_2024
+# Should show:
+# robaikg       running    8088/tcp
+# robaineo4j    running    7474/tcp, 7687/tcp
 ```
 
-**Local Installation** (Advanced):
-
-If running Neo4j locally without Docker:
-- Download from [neo4j.com](https://neo4j.com/download/)
-- Configure BOLT protocol on port 7687
-- Set `NEO4J_URI=bolt://localhost:7687` in .env
-
-### Step 5: Verify Dependencies
-
-Ensure all dependent services are running:
-
+**Check logs:**
 ```bash
-# Check vLLM is running
-curl http://localhost:8078/v1/models
+docker compose logs -f robaikg
 
-# Check Neo4j is running
-curl http://localhost:7474
-
-# Test Neo4j connection
-python3 -c "from neo4j import AsyncDriver; print('Neo4j driver available')"
+# Expected output:
+# Starting kg-service
+# Service: kg-service v1.0.0
+# API: 0.0.0.0:8088
+# Neo4j: bolt://localhost:7687
+# Augmentation LLM: http://localhost:8078
+# Entity Min Confidence: 0.4
+# ✓ KG Processor initialized successfully
+# Starting KG Workers
+# ✓ Database initialized for workers
+# ✓ KG workers started
+# ✓ KG Dashboard started on http://0.0.0.0:8090
+# ✓ kg-service ready
 ```
 
-Expected containers:
-- `neo4j-kg` - Neo4j graph database
+### 4. Verify Installation
 
-### Step 6: Start kg-service
-
-**Development Mode** (with auto-reload):
-
+**Health check:**
 ```bash
-python3 kg-service/main.py
-```
-
-The service will start on `http://localhost:8088`
-
-**Production Mode** (with Uvicorn):
-
-```bash
-uvicorn kg-service.main:app --host 0.0.0.0 --port 8088 --workers 4
-```
-
-**Background Mode**:
-
-```bash
-nohup python3 kg-service/main.py > kg-service.log 2>&1 &
-```
-
-### Step 7: Verify Installation
-
-Check that the service is running and healthy:
-
-```bash
-# Health check
 curl http://localhost:8088/health
 
-# Service statistics
-curl http://localhost:8088/stats
-
-# Model information
-curl http://localhost:8088/api/v1/model-info
-```
-
-Expected health response:
-
-```json
+# Response:
 {
   "status": "healthy",
-  "service": "kg-service",
-  "version": "1.0.0",
+  "timestamp": "2025-11-18T12:00:00Z",
   "services": {
     "neo4j": "connected",
-    "vllm": "available",
-    "gliner": "loaded"
-  }
+    "vllm": "connected (Qwen/Qwen2.5-7B-Instruct)",
+    "llm_extraction": "available"
+  },
+  "version": "1.0.0",
+  "uptime_seconds": 45.2
 }
 ```
 
-## Basic Usage
-
-### Using Python
-
-#### 1. Install Client Library
-
+**Check Neo4j Browser:**
 ```bash
-# Use the included client or curl
-pip install httpx
+# Open in browser: http://localhost:7474
+# Username: neo4j
+# Password: knowledge_graph_2024
+
+# Run test query:
+MATCH (n) RETURN count(n) as node_count
 ```
 
-#### 2. Extract Entities from Document
-
-```python
-import httpx
-import json
-
-async def extract_entities():
-    client = httpx.AsyncClient()
-
-    document = {
-        "content_id": 1,
-        "url": "https://example.com/page",
-        "title": "Example Documentation",
-        "markdown": """# FastAPI Documentation
-
-FastAPI is a modern web framework for building APIs using Python.
-It uses Pydantic for data validation and Uvicorn as ASGI server.
-FastAPI is built on top of Starlette for the web components.
-""",
-        "chunks": [
-            {
-                "vector_rowid": 45001,
-                "chunk_index": 0,
-                "char_start": 0,
-                "char_end": 250,
-                "text": "# FastAPI Documentation\n\nFastAPI is a modern web framework..."
-            }
-        ]
-    }
-
-    response = await client.post(
-        "http://localhost:8088/api/v1/ingest",
-        json=document
-    )
-
-    result = response.json()
-    print(f"Extracted {result['entities_extracted']} entities")
-    print(f"Extracted {result['relationships_extracted']} relationships")
-
-    for entity in result['entities'][:3]:
-        print(f"- {entity['text']} ({entity['type_primary']})")
-
-# Run async function
-import asyncio
-asyncio.run(extract_entities())
+**Check Dashboard:**
+```bash
+# Open in browser: http://localhost:8090
+# View queue statistics and processing metrics
 ```
 
-#### 3. Search Entities
+## Basic Workflows
 
-```python
-import httpx
+### Workflow 1: Manual Document Processing
 
-async def search_entities():
-    client = httpx.AsyncClient()
+Send a document directly to kg-service for entity/relationship extraction.
 
-    response = await client.post(
-        "http://localhost:8088/api/v1/search/entities",
-        json={
-            "entity_terms": ["FastAPI", "Python"],
-            "limit": 10
-        }
-    )
+**Step 1: Prepare document data**
 
-    entities = response.json()['entities']
-    for entity in entities:
-        print(f"{entity['text']}: {entity['mention_count']} mentions")
+Assume you have:
+- content_id: 123 (from crawled_content table)
+- URL: https://docs.fastapi.com
+- Title: "FastAPI Documentation"
+- Full markdown content
+- Chunk boundaries with vector_rowids
 
-asyncio.run(search_entities())
-```
-
-#### 4. Expand Related Entities
-
-```python
-import httpx
-
-async def expand_entities():
-    client = httpx.AsyncClient()
-
-    response = await client.post(
-        "http://localhost:8088/api/v1/expand/entities",
-        json={
-            "entity_names": ["FastAPI"],
-            "max_expansions": 5,
-            "expansion_depth": 1
-        }
-    )
-
-    expanded = response.json()['expanded_entities']
-    print(f"Found {len(expanded)} related entities:")
-    for entity in expanded:
-        print(f"- {entity['text']} ({entity['relationship_type']})")
-
-asyncio.run(expand_entities())
-```
-
-### Using cURL
-
-#### Extract Entities
+**Step 2: Send to kg-service**
 
 ```bash
 curl -X POST http://localhost:8088/api/v1/ingest \
   -H "Content-Type: application/json" \
   -d '{
-    "content_id": 1,
-    "url": "https://example.com/page",
-    "title": "Example",
-    "markdown": "FastAPI is a web framework using Pydantic and Uvicorn.",
-    "chunks": [{
-      "vector_rowid": 45001,
-      "chunk_index": 0,
-      "char_start": 0,
-      "char_end": 60,
-      "text": "FastAPI is a web framework using Pydantic and Uvicorn."
-    }]
+    "content_id": 123,
+    "url": "https://docs.fastapi.com",
+    "title": "FastAPI Documentation",
+    "markdown": "# FastAPI\n\nFastAPI is a modern, fast web framework...",
+    "chunks": [
+      {
+        "vector_rowid": 45001,
+        "chunk_index": 0,
+        "char_start": 0,
+        "char_end": 2500,
+        "text": "# FastAPI\n\nFastAPI is a modern web framework..."
+      },
+      {
+        "vector_rowid": 45002,
+        "chunk_index": 1,
+        "char_start": 2500,
+        "char_end": 5000,
+        "text": "## Features\n\nFastAPI provides..."
+      }
+    ],
+    "metadata": {
+      "tags": "python,api,web",
+      "timestamp": "2025-11-18T12:00:00Z"
+    }
   }'
 ```
 
-#### Search Entities
+**Step 3: Process response**
+
+The service returns:
+
+```json
+{
+  "success": true,
+  "content_id": 123,
+  "neo4j_document_id": "4:doc:456",
+  "entities_extracted": 87,
+  "relationships_extracted": 43,
+  "processing_time_ms": 2341,
+  "entities": [
+    {
+      "text": "FastAPI",
+      "normalized": "fastapi",
+      "type_primary": "Framework",
+      "type_sub1": "Backend",
+      "type_sub2": "Python",
+      "type_full": "Framework::Backend::Python",
+      "confidence": 0.95,
+      "neo4j_node_id": "4:entity:789",
+      "chunk_appearances": [
+        {
+          "vector_rowid": 45001,
+          "chunk_index": 0,
+          "offset_start": 342,
+          "offset_end": 349
+        }
+      ],
+      "spans_multiple_chunks": false
+    }
+  ],
+  "relationships": [
+    {
+      "subject_text": "FastAPI",
+      "predicate": "uses",
+      "object_text": "Pydantic",
+      "confidence": 0.88,
+      "context": "FastAPI uses Pydantic for data validation",
+      "neo4j_relationship_id": "5:rel:101",
+      "chunk_rowids": [45001]
+    }
+  ],
+  "summary": {
+    "entities_by_type": {
+      "Framework": 12,
+      "Language": 3,
+      "Concept": 5
+    },
+    "relationships_by_predicate": {
+      "uses": 15,
+      "competes_with": 3,
+      "implements": 8
+    },
+    "chunks_with_entities": 18,
+    "avg_entities_per_chunk": 4.8
+  }
+}
+```
+
+**What happened:**
+1. kg-service received document with chunk boundaries
+2. LLM extracted entities and relationships from full markdown
+3. Entities mapped to specific chunks using character offsets
+4. Everything stored in Neo4j graph database
+5. Document node, Entity nodes, Chunk nodes, and relationships created
+6. Results returned for storage in SQLite
+
+### Workflow 2: Queue-Based Processing
+
+Use the background worker system for automated batch processing.
+
+**Step 1: Add documents to queue**
+
+```python
+# From robaimodeltools or direct SQLite
+import sqlite3
+
+db = sqlite3.connect('/data/crawl4ai_rag.db')
+
+# Queue document for KG processing
+db.execute('''
+    INSERT INTO kg_processing_queue (content_id, priority, status)
+    VALUES (?, ?, 'pending')
+''', (123, 0))
+db.commit()
+```
+
+**Step 2: Workers automatically process**
+
+The KG worker running in kg-service automatically:
+1. Claims pending items from queue (batch of 5)
+2. Fetches document and chunk data
+3. Sends to KG processor
+4. Writes results back to SQLite
+5. Marks queue item as completed
+
+**Step 3: Monitor progress**
+
+```bash
+# Check queue statistics
+curl http://localhost:8088/api/v1/queue/stats \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+
+# Response:
+{
+  "success": true,
+  "stats": {
+    "pending": 15,
+    "processing": 3,
+    "completed": 487,
+    "failed": 2,
+    "dead_letter": 0,
+    "long_running": 1,
+    "total": 508
+  }
+}
+```
+
+**Step 4: View dashboard**
+
+Open http://localhost:8090 to see:
+- Queue status counts
+- Recent processing activity
+- Success/failure rates
+- Long-running items
+
+### Workflow 3: Entity Search
+
+Search for entities by name to find related documents.
+
+**Step 1: Search for entity**
 
 ```bash
 curl -X POST http://localhost:8088/api/v1/search/entities \
   -H "Content-Type: application/json" \
   -d '{
-    "entity_terms": ["FastAPI"],
-    "limit": 10
+    "entity_terms": ["FastAPI", "Python"],
+    "limit": 50,
+    "min_mentions": 1
   }'
 ```
 
-#### Expand Entities
+**Step 2: Review results**
+
+```json
+{
+  "success": true,
+  "entities": [
+    {
+      "entity_id": "4:entity:789",
+      "text": "FastAPI",
+      "normalized": "fastapi",
+      "type_primary": "Framework",
+      "type_full": "Framework::Backend::Python",
+      "mention_count": 127,
+      "confidence": 0.92
+    },
+    {
+      "entity_id": "4:entity:12",
+      "text": "Python",
+      "normalized": "python",
+      "type_primary": "Language",
+      "type_full": "Language::Programming",
+      "mention_count": 543,
+      "confidence": 0.95
+    }
+  ],
+  "total_found": 2
+}
+```
+
+**Step 3: Get chunks containing entities**
+
+```bash
+curl -X POST http://localhost:8088/api/v1/search/chunks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "entity_names": ["FastAPI"],
+    "limit": 100,
+    "include_document_info": true
+  }'
+```
+
+**Step 4: Use results in RAG pipeline**
+
+The chunks returned contain `vector_rowid` which maps directly to SQLite `content_vectors.rowid` for retrieval.
+
+### Workflow 4: Entity Expansion
+
+Discover related entities through graph relationships.
+
+**Step 1: Start with known entities**
 
 ```bash
 curl -X POST http://localhost:8088/api/v1/expand/entities \
   -H "Content-Type: application/json" \
   -d '{
     "entity_names": ["FastAPI"],
-    "max_expansions": 5
+    "max_expansions": 10,
+    "min_confidence": 0.3,
+    "expansion_depth": 1
   }'
 ```
 
-## Understanding Entity Types
+**Step 2: Review related entities**
 
-robaikg extracts **300+ entity types** organized hierarchically. Some common examples:
-
-### Technology Entities
-
-```
-Framework::Backend::Python
-- Framework (primary)
-- Backend (sub1)
-- Python (sub2)
-
-Library::Validation::Python
-- Library (primary)
-- Validation (sub1)
-- Python (sub2)
-```
-
-### Common Entity Types
-
-- **Framework**: Backend, Frontend, Full-Stack, Web
-- **Library**: Validation, ORM, Testing, Async
-- **Language**: Python, JavaScript, Java, Go
-- **Database**: SQL, NoSQL, Graph, Cache
-- **Tool**: Build, Deploy, Monitor, Test
-- **Concept**: Pattern, Algorithm, Protocol, Standard
-- **Organization**: Company, Team, Project, Community
-- **Person**: Developer, Author, Contributor, Maintainer
-- **Location**: City, Region, Country, Continent
-
-## Understanding Relationships
-
-robaikg extracts **50+ relationship types**:
-
-### Common Relationship Types
-
-**Technical**:
-- `uses` - Entity A uses Entity B
-- `depends_on` - Requires or depends on
-- `implements` - Implements or provides
-- `extends` - Extends or inherits from
-- `integrates_with` - Integrates or compatible with
-
-**Comparative**:
-- `competes_with` - Competes in same space
-- `similar_to` - Similar functionality or purpose
-- `different_from` - Different approach or paradigm
-- `alternative_to` - Alternative option
-
-**Hierarchical**:
-- `part_of` - Component of larger system
-- `contains` - Contains or includes
-- `belongs_to` - Belongs to category
-- `located_in` - Geographical location
-
-**Temporal**:
-- `precedes` - Comes before in time
-- `follows` - Comes after in time
-- `replaces` - Replacement for
-- `updates` - Updated version of
-
-## Database Concepts
-
-### Entity Extraction Pipeline
-
-```
-Raw Document (Markdown)
-        ↓
-[Tokenize & Chunk]
-        ↓
-[GLiNER Model Inference]
-        ↓
-[Confidence Filtering]
-        ↓
-[Deduplication]
-        ↓
-[Neo4j Storage]
+```json
+{
+  "success": true,
+  "original_entities": ["FastAPI"],
+  "expanded_entities": [
+    {
+      "entity_id": "4:entity:790",
+      "text": "Pydantic",
+      "normalized": "pydantic",
+      "type_primary": "Library",
+      "type_full": "Library::Python",
+      "mention_count": 89,
+      "relationship_type": "CO_OCCURS",
+      "relationship_confidence": 0.9,
+      "path_distance": 1
+    },
+    {
+      "entity_id": "4:entity:812",
+      "text": "Starlette",
+      "normalized": "starlette",
+      "type_primary": "Framework",
+      "type_full": "Framework::Backend::Python",
+      "mention_count": 34,
+      "relationship_type": "CO_OCCURS",
+      "relationship_confidence": 0.7,
+      "path_distance": 1
+    }
+  ],
+  "total_discovered": 2
+}
 ```
 
-**Performance**: 2-3 seconds per document
+**What this tells you:**
+- FastAPI frequently co-occurs with Pydantic (9+ chunks in common)
+- FastAPI also co-occurs with Starlette (3+ chunks)
+- These are semantically related concepts from the knowledge base
 
-### Relationship Extraction Pipeline
+**Step 3: Use expansions in query enhancement**
 
-```
-Document + Extracted Entities
-        ↓
-[Build Prompt]
-        ↓
-[vLLM Inference]
-        ↓
-[JSON Parsing]
-        ↓
-[Validation]
-        ↓
-[Neo4j Storage]
-```
+The robaimodeltools EntityExpander uses this endpoint to enrich user queries with related concepts.
 
-**Performance**: 5-10 seconds per document
+## Common Tasks
 
-### Neo4j Graph Structure
+### Task 1: Re-process a Document
 
-The knowledge graph stores:
+If you re-crawl a URL and want to update the knowledge graph:
 
-**Nodes**:
-- `Document` - Crawled/ingested documents
-- `Chunk` - Text chunks with vector indices
-- `Entity` - Extracted named entities
+**Just call /api/v1/ingest again with the same content_id.**
 
-**Relationships**:
-- `Document -[:HAS_CHUNK]-> Chunk`
-- `Entity -[:MENTIONED_IN {offset}]-> Chunk`
-- `Entity -[:USES|DEPENDS_ON|...]-> Entity` (semantic)
-- `Entity -[:CO_OCCURS_WITH]-> Entity` (co-occurrence)
-
-## Testing Your Installation
-
-### Test 1: Health Check
+The kg-service automatically:
+1. Detects existing document by content_id
+2. Deletes old Neo4j nodes/relationships
+3. Processes new content
+4. Creates fresh graph data
 
 ```bash
-curl http://localhost:8088/health | jq
-```
-
-Should return status "healthy" with all services connected.
-
-### Test 2: Extract Entities
-
-```bash
-# Test entity extraction with sample document
+# No special cleanup needed - just POST again
 curl -X POST http://localhost:8088/api/v1/ingest \
   -H "Content-Type: application/json" \
-  -d @- <<'EOF'
-{
-  "content_id": 1,
-  "url": "https://test.example.com",
-  "title": "Test Document",
-  "markdown": "Python is a programming language. FastAPI is a web framework. Pydantic provides data validation.",
-  "chunks": [{
-    "vector_rowid": 1,
-    "chunk_index": 0,
-    "char_start": 0,
-    "char_end": 120,
-    "text": "Python is a programming language. FastAPI is a web framework. Pydantic provides data validation."
-  }]
-}
-EOF
+  -d '{"content_id": 123, "url": "...", ...}'
 ```
 
-Expected output: Extracted entities with types and confidence scores.
+### Task 2: Check Processing Status
 
-### Test 3: Search and Expand
+**For a specific content_id:**
 
 ```bash
-# Search for extracted entities
-curl -X POST http://localhost:8088/api/v1/search/entities \
-  -H "Content-Type: application/json" \
-  -d '{"entity_terms": ["FastAPI"], "limit": 5}'
+# Check if processed
+sqlite3 /data/crawl4ai_rag.db \
+  "SELECT kg_processed, kg_entity_count, kg_relationship_count
+   FROM crawled_content WHERE id = 123"
 
-# Expand related entities
-curl -X POST http://localhost:8088/api/v1/expand/entities \
-  -H "Content-Type: application/json" \
-  -d '{"entity_names": ["FastAPI"], "max_expansions": 5}'
+# Output: 1|87|43 (processed, 87 entities, 43 relationships)
 ```
 
-## Neo4j Browser Exploration
+**For queue status:**
 
-Access the Neo4j Browser at [http://localhost:7474](http://localhost:7474)
-
-### Useful Queries
-
-**Count all entities**:
-
-```cypher
-MATCH (e:Entity) RETURN count(e) as total_entities
+```bash
+curl http://localhost:8088/api/v1/queue/stats \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-**Find top entities by mentions**:
+### Task 3: Handle Failed Items
+
+**View dead letter queue:**
+
+```bash
+curl http://localhost:8088/api/v1/queue/stats \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+
+# Look for "dead_letter": N
+```
+
+**Inspect failed items in SQLite:**
+
+```sql
+SELECT q.id, q.content_id, c.url, q.retry_count, q.error_message
+FROM kg_processing_queue q
+JOIN crawled_content c ON q.content_id = c.id
+WHERE q.status = 'dead_letter'
+ORDER BY q.created_at DESC
+LIMIT 10;
+```
+
+**Re-queue a failed item:**
+
+```sql
+UPDATE kg_processing_queue
+SET status = 'pending', retry_count = 0, priority = 10, error_message = NULL
+WHERE id = 456;
+```
+
+### Task 4: Monitor Long-Running Items
+
+**Check for stale processing:**
+
+```bash
+curl "http://localhost:8088/api/v1/queue/long-running?minutes_threshold=60" \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "items": [
+    {
+      "queue_id": 789,
+      "content_id": 145,
+      "url": "https://example.com/very-long-doc",
+      "processing_started_at": "2025-11-18T10:30:00Z",
+      "minutes_elapsed": 75.3
+    }
+  ],
+  "count": 1
+}
+```
+
+**Action:** These items are automatically marked as "long_running" status by the worker cleanup task.
+
+### Task 5: Query Neo4j Directly
+
+**Connect to Neo4j Browser:**
+- URL: http://localhost:7474
+- Username: neo4j
+- Password: knowledge_graph_2024
+
+**Example queries:**
 
 ```cypher
+// Find all frameworks
 MATCH (e:Entity)
-RETURN e.text, e.type_primary, e.mention_count
+WHERE e.type_primary = 'Framework'
+RETURN e.text, e.mention_count
 ORDER BY e.mention_count DESC
-LIMIT 20
-```
+LIMIT 10;
 
-**Explore entity relationships**:
+// Find entities related to FastAPI
+MATCH (e1:Entity {normalized: 'fastapi'})-[:MENTIONED_IN]->(c:Chunk)
+      <-[:MENTIONED_IN]-(e2:Entity)
+WHERE e1 <> e2
+WITH e2, COUNT(DISTINCT c) as cooccurrence_count
+WHERE cooccurrence_count >= 3
+RETURN e2.text, e2.type_full, cooccurrence_count
+ORDER BY cooccurrence_count DESC
+LIMIT 10;
 
-```cypher
-MATCH (e1:Entity {text: "FastAPI"})-[r]->(e2:Entity)
-RETURN e1.text, type(r), e2.text, r.confidence
-ORDER BY r.confidence DESC
-```
+// Find documents about a topic
+MATCH (e:Entity {normalized: 'fastapi'})-[:MENTIONED_IN]->(c:Chunk)
+      <-[:HAS_CHUNK]-(d:Document)
+RETURN DISTINCT d.url, d.title, COUNT(c) as chunk_count
+ORDER BY chunk_count DESC;
 
-**Find documents by entity**:
-
-```cypher
-MATCH (e:Entity {text: "Python"})-[:MENTIONED_IN]->(c:Chunk)-[:PART_OF]->(d:Document)
-RETURN DISTINCT d.title, d.url
-LIMIT 10
+// View relationship distribution
+MATCH ()-[r]->()
+RETURN type(r) as relationship_type, COUNT(*) as count
+ORDER BY count DESC;
 ```
 
 ## Troubleshooting
 
-### Service Won't Start
+### Issue: Health check shows "degraded"
 
-**Problem**: `uvicorn` or `python` fails to start
-
-**Solutions**:
-1. Check Neo4j is running:
-   ```bash
-   docker ps | grep neo4j
-   ```
-
-2. Verify port 8088 is not in use:
-   ```bash
-   lsof -i :8088
-   ```
-
-3. Check configuration:
-   ```bash
-   cat .env
-   ```
-
-4. View detailed logs:
-   ```bash
-   python3 -c "from kg-service.main import app; print('Module loaded')"
-   ```
-
-### Health Check Shows "unhealthy"
-
-**Problem**: `/health` endpoint shows degraded status
-
-**Solutions**:
-1. Verify Neo4j connection:
-   ```bash
-   docker exec neo4j-kg cypher-shell -u neo4j -p knowledge_graph_2024 "RETURN 1"
-   ```
-
-2. Check vLLM is running:
-   ```bash
-   curl http://localhost:8078/v1/models
-   ```
-
-3. Verify Neo4j credentials:
-   ```bash
-   grep NEO4J .env
-   ```
-
-### Entity Extraction Slow
-
-**Problem**: Processing takes more than 10 seconds
-
-**Possible causes**:
-- Large documents (>10,000 chars)
-- Low confidence threshold (many entities to extract)
-- CPU bottleneck (GLiNER is CPU-intensive)
-
-**Solutions**:
-- Increase `GLINER_THRESHOLD` in .env (0.45 → 0.6)
-- Reduce `CHUNK_SIZE` (2000 → 1000)
-- Add more CPU cores if using container
-
-### Relationship Extraction Failing
-
-**Problem**: No relationships extracted, only entities
-
-**Solutions**:
-1. Verify vLLM is running:
-   ```bash
-   curl http://localhost:8078/v1/models
-   ```
-
-2. Check vLLM model is loaded:
-   ```bash
-   curl http://localhost:8078/v1/models | jq
-   ```
-
-3. Increase vLLM timeout in .env:
-   ```bash
-   VLLM_TIMEOUT=3600  # 1 hour
-   ```
-
-4. Check logs:
-   ```bash
-   tail -f kg-service.log
-   ```
-
-### "Connection refused" Errors
-
-**Problem**: Cannot connect to Neo4j or vLLM
-
-**Solutions**:
-1. Verify services are running:
-   ```bash
-   docker ps
-   ```
-
-2. Check firewall:
-   ```bash
-   # Test Neo4j connection
-   nc -zv localhost 7687
-
-   # Test vLLM connection
-   nc -zv localhost 8078
-   ```
-
-3. Update .env URLs if services on different hosts:
-   ```bash
-   NEO4J_URI=bolt://neo4j-host:7687
-   VLLM_BASE_URL=http://vllm-host:8078
-   ```
-
-## Integration with RAG Pipeline
-
-robaikg integrates with the larger RobAI RAG system:
-
-1. **Content Source**: robaicrawler crawls URLs
-2. **Storage**: robaimodeltools stores in SQLite
-3. **Processing**: robaidata queues documents for KG extraction
-4. **KG Extraction**: **robaikg** (this service) extracts entities/relationships
-5. **Graph Storage**: Neo4j stores the knowledge graph
-6. **Search**: robaitragmcp uses KG for hybrid search
-7. **REST API**: robairagapi exposes KG operations
-
-## Performance Tips
-
-### 1. Tune GLiNER Threshold
-
-For **more entities** (higher recall):
-```bash
-GLINER_THRESHOLD=0.3
+**Symptoms:**
+```json
+{
+  "status": "degraded",
+  "services": {
+    "neo4j": "connected",
+    "vllm": "error: Connection refused"
+  }
+}
 ```
 
-For **fewer entities** (higher precision):
+**Solution:**
+1. Check vLLM is running on configured port
+2. Verify AUGMENT_LLM_URL in .env
+3. Test vLLM directly: `curl http://localhost:8078/health`
+
+### Issue: Workers not processing queue
+
+**Symptoms:**
+- Queue items stay in "pending" status
+- No log output from workers
+
+**Diagnosis:**
 ```bash
-GLINER_THRESHOLD=0.6
+# Check worker logs
+docker compose logs robaikg | grep "KG worker"
+
+# Should see:
+# ✓ KG worker started (poll_interval=5.0s)
 ```
 
-### 2. Tune Relationship Confidence
+**Solutions:**
+1. Verify KG_NUM_WORKERS > 0 in environment
+2. Check OPENAI_API_KEY is set (required for authentication)
+3. Restart container: `docker compose restart robaikg`
 
-For **more relationships**:
-```bash
-RELATION_MIN_CONFIDENCE=0.3
+### Issue: "Database not initialized" error
+
+**Symptoms:**
+```json
+{
+  "success": false,
+  "error": "Database not initialized"
+}
 ```
 
-For **fewer relationships**:
-```bash
-RELATION_MIN_CONFIDENCE=0.7
+**Solution:**
+This means queue endpoints were called before the database instance was registered.
+
+1. Wait 10-15 seconds after container startup
+2. Check logs for "✓ Database initialized for workers"
+3. If persistent, restart: `docker compose restart robaikg`
+
+### Issue: Neo4j connection refused
+
+**Symptoms:**
+```
+Failed to connect to Neo4j
+neo4j: error: Connection refused
 ```
 
-### 3. Neo4j Memory Configuration
+**Solution:**
+1. Ensure Neo4j container is running: `docker compose ps robaineo4j`
+2. Check Neo4j logs: `docker compose logs robaineo4j`
+3. Wait for Neo4j startup (can take 30-60 seconds)
+4. Verify NEO4J_URI in .env matches Neo4j host/port
 
-For large graphs, increase Neo4j memory:
+### Issue: Extraction timeout
 
-```bash
-# Edit docker-compose.yml or .env
-NEO4J_HEAP_INITIAL_SIZE=4G
-NEO4J_HEAP_MAX_SIZE=16G
-NEO4J_PAGECACHE_SIZE=4G
+**Symptoms:**
+```
+Processing failed: vLLM request timeout after 1800 seconds
 ```
 
-### 4. Parallel Processing
+**Solution:**
+1. Document is very large (> 100K characters)
+2. Increase VLLM_TIMEOUT in .env (default 1800 = 30 minutes)
+3. Or split large documents before processing
 
-Process multiple documents concurrently via robaidata workers:
+### Issue: High memory usage
 
-```bash
-KG_NUM_WORKERS=4  # Number of parallel workers
-```
+**Symptoms:**
+- Neo4j container using > 16GB RAM
+- System becomes slow
+
+**Solution:**
+1. Adjust NEO4J_HEAP_MAX_SIZE in .env
+2. Reduce NEO4J_PAGECACHE_SIZE
+3. Restart Neo4j: `docker compose restart robaineo4j`
+
+**Recommended settings by system RAM:**
+- 8GB system: HEAP_MAX=2G, PAGECACHE=1G
+- 16GB system: HEAP_MAX=8G, PAGECACHE=2G
+- 32GB+ system: HEAP_MAX=16G, PAGECACHE=4G
 
 ## Next Steps
 
-- [Configuration](configuration.html) - Detailed configuration options
-- [API Reference](api-reference.html) - Complete API documentation
-- [Architecture](architecture.html) - Understanding the system design
-- [KG_WORKFLOW_DOCUMENTATION.md](../KG_WORKFLOW_DOCUMENTATION.html) - Complete workflow guide
+1. **Architecture Deep Dive:** See [Architecture](architecture.md) for internal pipeline details
+2. **Configuration Tuning:** Review [Configuration](configuration.md) for performance optimization
+3. **API Integration:** Check [API Reference](api-reference.md) for complete endpoint documentation
+4. **Production Deployment:** Review deployment best practices and monitoring setup
+
+## Quick Reference
+
+**Service Ports:**
+- kg-service API: 8088
+- Neo4j Browser: 7474
+- Neo4j Bolt: 7687
+- KG Dashboard: 8090
+
+**Key Endpoints:**
+- POST /api/v1/ingest - Process document
+- GET /health - Health check
+- POST /api/v1/search/entities - Search entities
+- POST /api/v1/expand/entities - Expand via graph
+- GET /api/v1/queue/stats - Queue statistics
+
+**Default Credentials:**
+- Neo4j: neo4j / knowledge_graph_2024
+- API: Bearer token from OPENAI_API_KEY
+
+**Log Locations:**
+- kg-service: `docker compose logs robaikg`
+- Neo4j: `docker compose logs robaineo4j`
+- Dashboard: http://localhost:8090
+
+**SQLite Tables:**
+- kg_processing_queue - Processing queue
+- chunk_entities - Entity appearances
+- chunk_relationships - Relationships
+- crawled_content - Document metadata (kg_processed flag)

@@ -2,539 +2,335 @@
 layout: default
 title: Getting Started
 parent: robaitragmcp
-nav_order: 1
+nav_order: 2
 ---
 
-# Getting Started with robaitragmcp
+# Getting Started
 
-Complete setup guide for the MCP Server for RAG with web crawling and semantic search.
+Quick start guide for the robaitragmcp MCP server with dynamic tool discovery.
 
 ## Prerequisites
 
-Before installing robaitragmcp, ensure you have:
+- Python 3.11+
+- Docker and Docker Compose
+- robaimodeltools library (shared dependency)
+- 2GB+ RAM recommended
 
-- **Python 3.11+** installed
-- **SQLite 3.35+** (built-in on most systems)
-- **Node.js 18+** (for Claude Desktop integration)
-- **Docker** (optional, for Crawl4AI)
-- **At least 4GB RAM** (more for large searches)
-- **Git** for cloning repository
+## Quick Start
 
-## Installation
+### Docker Deployment (Recommended)
 
-### Step 1: Navigate to Directory
+**Start the MCP server:**
+```bash
+cd /home/robiloo/Documents/robaitools
+docker compose up -d robaitragmcp
+```
+
+**Verify it's running:**
+```bash
+docker compose ps robaitragmcp
+# Should show: robaitragmcp   running   0.0.0.0:3000->3000/tcp
+
+docker compose logs robaitragmcp | tail -20
+# Look for: "✅ MCP Server listening on ('0.0.0.0', 3000)"
+# Look for: "✅ Discovered N tools"
+```
+
+**Check logs for discovered tools:**
+```bash
+docker compose logs robaitragmcp | grep "Discovered"
+# Output: "✓ Successfully discovered 25 tools from robaimodeltools"
+```
+
+### Local Development
+
+**Run directly:**
+```bash
+cd robaitragmcp
+python3 -u core/mcp_server.py
+```
+
+**Expected output:**
+```
+MCP Server created
+🔍 Discovering tools and loading models...
+Discovered Crawl4AIRAG method: crawler_crawl_url
+Discovered Crawl4AIRAG method: crawler_search_knowledge
+... (20+ more tools)
+✓ Successfully discovered 25 tools from robaimodeltools
+✅ MCP Server listening on ('0.0.0.0', 3000)
+✅ Models loaded and ready for instant tool calling
+```
+
+## Testing the Server
+
+### Test with netcat
 
 ```bash
-cd /path/to/robaitools/robaitragmcp
+# Connect to TCP server
+nc localhost 3000
+
+# Send initialize request (paste this line):
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","clientInfo":{"name":"test"}}}
+
+# Expected response:
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverInfo":{"name":"robaimcp","version":"1.0.0"},"capabilities":{"tools":{}}}}
+
+# List tools:
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+
+# Call a tool:
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"crawler_search_knowledge","arguments":{"query":"python async"}}}
 ```
 
-### Step 2: Install Dependencies
-
-```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install MCP server package
-pip install -e .
-```
-
-**Key Dependencies**:
-- mcp - Model Context Protocol SDK
-- httpx - Async HTTP client (for Crawl4AI)
-- sqlite-vec - Vector search in SQLite
-- pydantic - Data validation
-
-### Step 3: Configure Environment
-
-```bash
-# Copy example configuration
-cp .env.example .env
-
-# Edit with your settings
-nano .env
-```
-
-**Minimum Configuration**:
-
-```bash
-# Database Configuration
-ROBAI_DATABASE_MODE=disk           # or 'ram' for in-memory
-ROBAI_DATABASE_PATH=./data/rag.db  # SQLite database file
-ROBAI_CRAWL4AI_URL=http://localhost:5037
-
-# Retention Policy
-ROBAI_RETENTION_POLICY=permanent   # permanent, session, 30day
-ROBAI_SESSION_TIMEOUT=86400        # 24 hours in seconds
-
-# Neo4j (optional)
-ROBAI_ENABLE_KNOWLEDGE_GRAPH=false
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=knowledge_graph_2024
-```
-
-See [Configuration](configuration.html) for all options.
-
-### Step 4: Start Crawl4AI (if using Docker)
-
-```bash
-# Start Crawl4AI service (required for web crawling)
-docker run -d -p 5037:5037 crawl4ai/crawl4ai-server
-
-# Verify it's running
-curl http://localhost:5037/health
-```
-
-Or install locally:
-
-```bash
-pip install crawl4ai
-
-# Start server
-crawl4ai-server
-```
-
-### Step 5: Start robaitragmcp Server
-
-**Development Mode**:
-
-```bash
-# Run with stdio output (for Claude Desktop)
-mcp run robaitragmcp.server
-```
-
-**Production Mode** (Standalone):
-
-```bash
-# Run as background process
-nohup mcp run robaitragmcp.server > robaitragmcp.log 2>&1 &
-```
-
-### Step 6: Integrate with Claude Desktop
-
-Add to `~/.claude/config.json`:
-
-```json
-{
-  "mcpServers": {
-    "robaitragmcp": {
-      "command": "mcp",
-      "args": ["run", "robaitragmcp.server"],
-      "env": {
-        "ROBAI_DATABASE_MODE": "disk",
-        "ROBAI_DATABASE_PATH": "/path/to/data/rag.db"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Desktop to load the server.
-
-## Database Modes
-
-### RAM Mode (Fast)
-
-```bash
-ROBAI_DATABASE_MODE=ram
-ROBAI_MAX_RAM_SIZE=1GB  # Maximum memory usage
-```
-
-**Features**:
-- 10-50x faster than disk
-- Differential sync to disk
-- Fast session switching
-- Good for interactive use
-
-**Limitations**:
-- Limited by available RAM
-- Data lost on process restart (without sync)
-
-**Best For**: Development, interactive sessions
-
-### Disk Mode (Persistent)
-
-```bash
-ROBAI_DATABASE_MODE=disk
-ROBAI_DATABASE_PATH=/path/to/rag.db
-```
-
-**Features**:
-- Full data persistence
-- Unlimited size
-- Automatic backups
-- Survives process restart
-
-**Limitations**:
-- Slightly slower than RAM mode
-- More I/O operations
-
-**Best For**: Production, long-term storage
-
-## Basic Usage
-
-### Using Claude Desktop
-
-1. Start Claude Desktop after configuring robaitragmcp
-2. MCP tools appear in the prompt area
-3. Use natural language to request operations:
-
-```
-"Crawl https://docs.python.org and search for async patterns"
-```
-
-Available tools:
-- `crawl_url` - Extract content from web page
-- `search` - Search indexed content by text
-- `vector_search` - Semantic similarity search
-- `get_memory` - Retrieve stored content
-- `create_tag` - Tag content for organization
-- And more...
-
-### Using Python Client
-
-#### Extract Web Content
+### Test with Python Script
 
 ```python
-import subprocess
+import socket
 import json
 
-# Call MCP tool via subprocess
-def call_mcp_tool(tool_name, **kwargs):
-    cmd = ["mcp", "call", "robaitragmcp.server", tool_name]
-    result = subprocess.run(cmd, capture_output=True, text=True, input=json.dumps(kwargs))
-    return json.loads(result.stdout)
+# Connect to MCP server
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect(('localhost', 3000))
 
-# Crawl a website
-response = call_mcp_tool("crawl_url", url="https://example.com")
-print(f"Extracted {len(response['content'])} characters")
-```
-
-#### Search Indexed Content
-
-```python
-# Search by text
-search_result = call_mcp_tool("search",
-    query="python async patterns",
-    limit=5
-)
-
-for result in search_result['results']:
-    print(f"- {result['title']}: {result['relevance']}")
-```
-
-#### Vector Search (Semantic)
-
-```python
-# Semantic similarity search
-vector_result = call_mcp_tool("vector_search",
-    query="how to use asyncio in Python",
-    limit=10
-)
-
-print(f"Found {len(vector_result['results'])} semantically similar chunks")
-```
-
-### Using cURL (for testing)
-
-```bash
-# Check server health
-curl http://localhost:8088/health
-
-# List available tools (MCP protocol)
-curl -X POST http://localhost:8088/rpc \
-  -H "Content-Type: application/json" \
-  -d '{
+# Send initialize
+init_msg = {
     "jsonrpc": "2.0",
     "id": 1,
-    "method": "tools/list"
-  }'
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2024-11-05",
+        "clientInfo": {"name": "test-client"}
+    }
+}
+sock.sendall((json.dumps(init_msg) + "\n").encode())
+response = sock.recv(4096)
+print("Initialize:", json.loads(response))
+
+# List tools
+list_msg = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+sock.sendall((json.dumps(list_msg) + "\n").encode())
+response = sock.recv(8192)
+tools = json.loads(response)
+print(f"Found {len(tools['result']['tools'])} tools")
+print("First tool:", tools['result']['tools'][0]['name'])
+
+sock.close()
 ```
 
-## Understanding Content Organization
+## Integration with robairagapi
 
-### Tags
+The robairagapi service uses robaitragmcp internally. To use it:
 
-Organize content hierarchically:
-
-```
-// Create tags
-python
-  - asyncio
-  - fastapi
-  - pydantic
-
-documentation
-  - tutorials
-  - api-reference
-  - architecture
-```
-
-Tools tagged for easy discovery:
-
-```python
-call_mcp_tool("create_tag",
-    name="python/asyncio",
-    description="Python async/await patterns"
-)
-```
-
-### Memory System
-
-Content stored in memory with:
-- **Full content**: Original text from crawled pages
-- **Chunks**: Split for vector search (500-2000 chars)
-- **Embeddings**: Vector representations for semantic search
-- **Metadata**: URL, title, tags, timestamps
-
-### Retention Policies
-
-**Permanent**:
-- Content kept indefinitely
-- Manual deletion only
-- Best for reference documents
-
-**Session**:
-- Content valid for current session only
-- Auto-deleted after timeout
-- Best for temporary searches
-
-**30-day**:
-- Auto-deleted after 30 days
-- Good balance of retention and cleanup
-- Best for time-sensitive content
-
-## Testing Installation
-
-### Test 1: MCP Server Health
-
+**Start robairagapi:**
 ```bash
-# Check if server is responsive
-python -c "from robaitragmcp.server import MCP_SERVER; print('Server OK')"
+docker compose up -d robairagapi
 ```
 
-### Test 2: Database Operations
-
-```python
-from robaitragmcp.database import Database
-
-db = Database(mode='disk')
-db.connect()
-
-# Test write
-db.store_content(
-    url="https://test.example.com",
-    title="Test Page",
-    content="This is test content"
-)
-
-# Test search
-results = db.search("test content", limit=5)
-print(f"Found {len(results)} results")
-
-db.close()
+**Make REST API calls:**
+```bash
+# Search via REST API (uses robaitragmcp under the hood)
+curl -X POST http://localhost:8081/api/v1/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{"query": "python async", "limit": 5}'
 ```
 
-### Test 3: Vector Search
+## Environment Variables
 
-```python
-from robaitragmcp.embeddings import EmbeddingModel
+**Server Configuration:**
+- `MCP_TCP_PORT`: TCP port (default: 3000)
+- `DISCOVERY_INTERVAL`: Health check interval in seconds (default: 30)
+- `MCP_TOOL_TIMEOUT`: Tool execution timeout in seconds (default: 60)
 
-model = EmbeddingModel()
-results = model.search(
-    query="python async patterns",
-    limit=3
-)
+**Dependencies:**
+- `CRAWL4AI_URL`: Crawl4AI service URL (default: http://localhost:11235)
+- `USE_MEMORY_DB`: RAM mode for SQLite (default: true)
 
-print(f"Found {len(results)} semantic matches")
+**Example .env:**
+```bash
+MCP_TCP_PORT=3000
+DISCOVERY_INTERVAL=30
+MCP_TOOL_TIMEOUT=60
+CRAWL4AI_URL=http://localhost:11235
+USE_MEMORY_DB=true
 ```
 
-## Common Operations
+## Common Workflows
 
-### Bulk Crawl Multiple URLs
+### Workflow 1: Direct TCP Connection
 
-```python
-import asyncio
+**Use case:** Testing, debugging, or custom MCP client integration.
 
-async def crawl_urls(urls):
-    results = []
-    for url in urls:
-        response = call_mcp_tool("crawl_url", url=url)
-        results.append(response)
-    return results
+**Steps:**
+1. Start MCP server: `docker compose up -d robaitragmcp`
+2. Connect via TCP: `nc localhost 3000` or custom client
+3. Send JSON-RPC 2.0 messages (newline-delimited)
+4. Receive responses
 
-urls = [
-    "https://docs.python.org",
-    "https://fastapi.tiangolo.com",
-    "https://pydantic-docs.helpmanual.io"
-]
+### Workflow 2: Via robairagapi REST API
 
-results = asyncio.run(crawl_urls(urls))
+**Use case:** HTTP-based access to MCP tools.
+
+**Steps:**
+1. Start both services: `docker compose up -d robaitragmcp robairagapi`
+2. Make REST API calls to http://localhost:8081
+3. robairagapi forwards to robaitragmcp internally
+4. Get JSON responses
+
+### Workflow 3: Container Restart Handling
+
+**What happens when monitored containers restart:**
+
+1. Health monitor detects container restart (checks every 30s)
+2. Triggers tool refresh automatically
+3. Re-discovers all tools from robaimodeltools
+4. Logs changes (added/removed tools)
+5. Server continues running without interruption
+
+**Monitored containers:**
+- robaicrawler (port 11235)
+- robaineo4j (port 7687)
+- robaikg (port 8088)
+- robairagapi (port 8081)
+
+**Example log output:**
+```
+Container robaicrawler restarted - triggering tool refresh
+Refreshing tool discovery...
+✓ Successfully discovered 25 tools from robaimodeltools
+No changes to tool list
 ```
 
-### Search with Filters
+## Discovered Tools Reference
 
-```python
-# Search within specific tags
-search_result = call_mcp_tool("search",
-    query="async patterns",
-    tags=["python", "asyncio"],
-    limit=10
-)
-```
+**Crawler Tools** (from Crawl4AIRAG class):
+- `crawler_crawl_url` - Crawl single URL
+- `crawler_crawl_urls_batch` - Crawl multiple URLs
+- `crawler_deep_crawl` - Recursive crawling with depth limit
+- `crawler_search_knowledge` - Semantic search in knowledge base
+- `crawler_add_blocked_domain` - Block domain patterns
+- `crawler_remove_blocked_domain` - Unblock domains
+- `crawler_get_blocked_domains` - List blocked domains
+- `crawler_clear_blocked_domains` - Clear all blocked domains
+- Plus ~10-15 more methods
 
-### Export Content
+**Search Tools** (from SearchHandler class):
+- `search_handler_search` - Basic semantic search
+- `search_handler_hybrid_search` - Vector + graph search
+- Plus other SearchHandler methods
 
-```python
-# Export all stored content
-export = call_mcp_tool("export_content",
-    format="markdown",
-    tags=["python"]
-)
-
-with open("python_docs.md", "w") as f:
-    f.write(export['content'])
-```
+**Dynamic Discovery:**
+- Exact tool list depends on robaimodeltools version
+- New methods automatically become tools
+- Check logs for complete list: `docker compose logs robaitragmcp | grep "Discovered"`
 
 ## Troubleshooting
 
-### MCP Server Won't Start
+### Issue: Server won't start
 
-**Problem**: Server fails to initialize
-
-**Solutions**:
-1. Check Python version:
-   ```bash
-   python --version  # Must be 3.11+
-   ```
-
-2. Verify dependencies:
-   ```bash
-   pip list | grep mcp
-   ```
-
-3. Check configuration:
-   ```bash
-   cat .env
-   ```
-
-### Crawl4AI Connection Failed
-
-**Problem**: Cannot reach Crawl4AI service
-
-**Solutions**:
-1. Verify service is running:
-   ```bash
-   curl http://localhost:5037/health
-   ```
-
-2. Check URL in configuration:
-   ```bash
-   grep CRAWL4AI .env
-   ```
-
-3. If using Docker:
-   ```bash
-   docker ps | grep crawl4ai
-   docker logs crawl4ai
-   ```
-
-### Vector Search Not Working
-
-**Problem**: Semantic search returns no results
-
-**Solutions**:
-1. Verify embeddings are generated:
-   ```bash
-   sqlite3 data/rag.db "SELECT COUNT(*) FROM embeddings"
-   ```
-
-2. Check embedding model is loaded:
-   ```python
-   from robaitragmcp.embeddings import EmbeddingModel
-   model = EmbeddingModel()
-   print(model.model_name)
-   ```
-
-3. Index may need rebuilding:
-   ```bash
-   python -m robaitragmcp.tools.reindex
-   ```
-
-### Out of Memory
-
-**Problem**: RAM mode consuming too much memory
-
-**Solutions**:
-1. Switch to disk mode:
-   ```bash
-   ROBAI_DATABASE_MODE=disk
-   ```
-
-2. Reduce max RAM:
-   ```bash
-   ROBAI_MAX_RAM_SIZE=512MB
-   ```
-
-3. Enable cleanup:
-   ```bash
-   ROBAI_RETENTION_POLICY=30day
-   ```
-
-## Integration Examples
-
-### With Claude API
-
-```python
-import anthropic
-import json
-from robaitragmcp.server import create_client
-
-# Create MCP client
-mcp_client = create_client("robaitragmcp")
-
-# Use with Claude
-client = anthropic.Anthropic()
-
-response = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
-    max_tokens=1024,
-    tools=[
-        {
-            "name": "search",
-            "description": "Search indexed content",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "limit": {"type": "integer"}
-                }
-            }
-        }
-    ],
-    messages=[
-        {
-            "role": "user",
-            "content": "Search for information about Python asyncio"
-        }
-    ]
-)
+**Symptoms:**
+```
+Error during tool discovery: ModuleNotFoundError: No module named 'robaimodeltools'
 ```
 
-### With LM-Studio
+**Solution:**
+```bash
+# Verify robaimodeltools is mounted
+docker compose exec robaitragmcp ls -la /robaimodeltools
 
-1. Open LM-Studio settings
-2. Add MCP server:
-   ```
-   Server: robaitragmcp
-   Command: mcp run robaitragmcp.server
-   ```
+# Check if Python can import it
+docker compose exec robaitragmcp python3 -c "import robaimodeltools; print('OK')"
 
-3. Load model and use tools in chat
+# Restart with fresh build
+docker compose down robaitragmcp
+docker compose up -d --build robaitragmcp
+```
+
+### Issue: "Discovered 0 tools"
+
+**Symptoms:**
+```
+✓ Successfully discovered 0 tools from robaimodeltools
+```
+
+**Cause:** robaimodeltools not available or import failed.
+
+**Solution:**
+1. Check logs for import errors: `docker compose logs robaitragmcp | grep -i error`
+2. Verify volume mounts in docker-compose.yml
+3. Check PYTHONPATH includes robaimodeltools
+4. Restart service: `docker compose restart robaitragmcp`
+
+### Issue: Tool timeout
+
+**Symptoms:**
+```
+ERROR - Tool crawler_deep_crawl timed out after 60s
+```
+
+**Solution:**
+```bash
+# Increase timeout in .env
+MCP_TOOL_TIMEOUT=120
+
+# Restart service
+docker compose restart robaitragmcp
+```
+
+### Issue: Health monitor warnings
+
+**Symptoms:**
+```
+WARNING - Some monitored containers not found: {'robaikg', 'robaineo4j'}
+```
+
+**Explanation:** This is OK - containers may be stopped or not needed.
+
+**Solution:** Ignore if you're not using KG features. Otherwise:
+```bash
+docker compose up -d robaikg robaineo4j
+```
+
+### Issue: Connection refused on port 3000
+
+**Symptoms:**
+```
+nc localhost 3000
+Connection refused
+```
+
+**Solution:**
+1. Check service is running: `docker compose ps robaitragmcp`
+2. Check port binding: `docker compose port robaitragmcp 3000`
+3. Check logs: `docker compose logs robaitragmcp`
+4. Verify port not in use: `lsof -i :3000`
+
+## Log Locations
+
+**Main log file:**
+```bash
+docker compose exec robaitragmcp cat /tmp/robaimcp.log
+```
+
+**Docker logs:**
+```bash
+docker compose logs robaitragmcp
+docker compose logs robaitragmcp -f  # Follow mode
+docker compose logs robaitragmcp --tail 50
+```
+
+**MCP action logs:**
+```bash
+# Filter for specific actions
+docker compose logs robaitragmcp | grep "MCP_ACTION"
+docker compose logs robaitragmcp | grep "tools/call"
+docker compose logs robaitragmcp | grep "Discovered"
+```
 
 ## Next Steps
 
-- [Configuration](configuration.html) - Advanced settings and tuning
-- [API Reference](api-reference.html) - Complete MCP tools documentation
-- [Architecture](architecture.html) - System design and internals
+1. **Architecture:** See [Architecture](architecture.md) for technical details
+2. **Configuration:** Review [Configuration](configuration.md) for environment tuning
+3. **API Reference:** Check [API Reference](api-reference.md) for available tools
+4. **Integration:** Learn about integrating with AI assistants and REST API

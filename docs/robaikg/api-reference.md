@@ -2,12 +2,12 @@
 layout: default
 title: API Reference
 parent: robaikg
-nav_order: 3
+nav_order: 5
 ---
 
 # API Reference
 
-Complete documentation of all robaikg REST API endpoints with examples.
+Complete API documentation for robaikg knowledge graph service endpoints.
 
 ## Base URL
 
@@ -15,74 +15,64 @@ Complete documentation of all robaikg REST API endpoints with examples.
 http://localhost:8088
 ```
 
-All endpoints require `Content-Type: application/json` for POST requests.
+All POST/PUT endpoints require `Content-Type: application/json` header.
 
-## Endpoints Overview
+## Authentication
 
-| Endpoint | Method | Purpose | Response Time |
-|----------|--------|---------|-----------------|
-| `/api/v1/ingest` | POST | Process document for entity/relationship extraction | 8-15s |
-| `/api/v1/search/entities` | POST | Search entities by text | <100ms |
-| `/api/v1/search/chunks` | POST | Get chunks containing entities | <200ms |
-| `/api/v1/expand/entities` | POST | Discover related entities | <500ms |
-| `/health` | GET | Service health + dependencies | <50ms |
-| `/stats` | GET | Processing statistics | <100ms |
-| `/api/v1/model-info` | GET | Model information | <10ms |
-| `/` | GET | Service information | <10ms |
+Queue management endpoints require Bearer token authentication:
 
-## Document Ingestion
+```bash
+Authorization: Bearer ${OPENAI_API_KEY}
+```
+
+## Endpoint Categories
+
+- [Core Processing](#core-processing) - Document ingestion and extraction
+- [Search Operations](#search-operations) - Entity/chunk search and expansion
+- [Queue Management](#queue-management) - Background processing queue
+- [Database Access](#database-access) - Vector database queries
+- [Monitoring](#monitoring) - Health checks and statistics
+
+---
+
+## Core Processing
 
 ### POST /api/v1/ingest
 
 Process document for entity and relationship extraction.
 
-**Request**:
-
+**Request:**
 ```json
 {
   "content_id": 123,
-  "url": "https://docs.example.com/page",
-  "title": "Example Documentation",
-  "markdown": "# Title\n\nContent with entities...",
+  "url": "https://docs.fastapi.com",
+  "title": "FastAPI Documentation",
+  "markdown": "# FastAPI\n\nFastAPI is a modern...",
   "chunks": [
     {
       "vector_rowid": 45001,
       "chunk_index": 0,
       "char_start": 0,
       "char_end": 2500,
-      "text": "# Title\n\nFirst chunk text..."
+      "text": "# FastAPI\n\nFastAPI is..."
     }
   ],
   "metadata": {
     "tags": "python,api",
-    "timestamp": "2025-10-17T12:00:00Z"
+    "timestamp": "2025-11-18T12:00:00Z"
   }
 }
 ```
 
-**Request Fields**:
-- `content_id` (integer, required) - Source content ID
-- `url` (string, required) - Document URL (http/https)
-- `title` (string, required) - Document title
-- `markdown` (string, required) - Full markdown content (50-1000000 chars)
-- `chunks` (array, required) - Text chunks with vector indices
-  - `vector_rowid` (integer) - SQLite content_vectors rowid
-  - `chunk_index` (integer) - Sequential chunk number
-  - `char_start` (integer) - Character start position
-  - `char_end` (integer) - Character end position
-  - `text` (string) - Chunk text
-- `metadata` (object, optional) - Custom metadata key-value pairs
-
-**Response** (200 OK):
-
+**Response (200 OK):**
 ```json
 {
   "success": true,
   "content_id": 123,
-  "neo4j_document_id": "4:abc123:456",
-  "entities_extracted": 42,
-  "relationships_extracted": 18,
-  "processing_time_ms": 8543,
+  "neo4j_document_id": "4:doc:456",
+  "entities_extracted": 87,
+  "relationships_extracted": 43,
+  "processing_time_ms": 2341,
   "entities": [
     {
       "text": "FastAPI",
@@ -93,16 +83,16 @@ Process document for entity and relationship extraction.
       "type_sub3": null,
       "type_full": "Framework::Backend::Python",
       "confidence": 0.95,
-      "neo4j_node_id": "4:def789:789",
+      "neo4j_node_id": "4:entity:789",
       "context_before": "modern web ",
       "context_after": " for building",
-      "sentence": "FastAPI is a modern web framework for building APIs.",
+      "sentence": "FastAPI is a modern web framework",
       "chunk_appearances": [
         {
           "vector_rowid": 45001,
           "chunk_index": 0,
-          "offset_start": 120,
-          "offset_end": 127
+          "offset_start": 342,
+          "offset_end": 349
         }
       ],
       "spans_multiple_chunks": false
@@ -111,391 +101,557 @@ Process document for entity and relationship extraction.
   "relationships": [
     {
       "subject_text": "FastAPI",
-      "subject_neo4j_id": "4:def789:789",
+      "subject_normalized": "fastapi",
       "predicate": "uses",
       "object_text": "Pydantic",
-      "object_neo4j_id": "4:def789:790",
+      "object_normalized": "pydantic",
       "confidence": 0.88,
       "context": "FastAPI uses Pydantic for data validation",
-      "neo4j_relationship_id": "5:rel123:101",
+      "neo4j_relationship_id": "5:rel:101",
       "spans_chunks": false,
       "chunk_rowids": [45001]
     }
   ],
   "summary": {
     "entities_by_type": {
-      "Framework": 8,
-      "Library": 12,
-      "Language": 3
+      "Framework": 12,
+      "Language": 3,
+      "Concept": 5
     },
     "relationships_by_predicate": {
-      "uses": 10,
-      "implements": 5,
-      "based_on": 3
+      "uses": 15,
+      "competes_with": 3,
+      "implements": 8
     },
-    "chunks_with_entities": 15,
-    "avg_entities_per_chunk": 2.8
+    "chunks_with_entities": 18,
+    "avg_entities_per_chunk": 4.8
   }
 }
 ```
 
-**Error Responses**:
-- 422 Unprocessable Entity - Validation error
-- 503 Service Unavailable - KG processor not ready
-- 500 Internal Server Error - Processing failure
-
-**Example with cURL**:
-
-```bash
-curl -X POST http://localhost:8088/api/v1/ingest \
-  -H "Content-Type: application/json" \
-  -d '{
-    "content_id": 1,
-    "url": "https://example.com/docs",
-    "title": "Documentation",
-    "markdown": "# FastAPI\n\nFastAPI is a modern Python web framework.",
-    "chunks": [{
-      "vector_rowid": 1,
-      "chunk_index": 0,
-      "char_start": 0,
-      "char_end": 50,
-      "text": "# FastAPI\n\nFastAPI is a modern Python"
-    }]
-  }'
+**Error (500):**
+```json
+{
+  "success": false,
+  "error": "Processing failed: vLLM timeout",
+  "error_type": "ProcessingError",
+  "timestamp": "2025-11-18T12:00:00Z"
+}
 ```
 
-## Entity Search
+**Processing Steps:**
+1. LLM extracts entities and relationships from markdown
+2. Entities mapped to chunks using character offsets
+3. Graph data stored in Neo4j
+4. Results returned for SQLite storage
+
+**Performance:**
+- Small docs (< 5K words): 2-4 seconds
+- Medium docs (5-20K words): 4-8 seconds
+- Large docs (> 20K words): 10-30 seconds
+
+---
+
+## Search Operations
 
 ### POST /api/v1/search/entities
 
 Search for entities by text matching.
 
-**Request**:
-
+**Request:**
 ```json
 {
-  "entity_terms": ["python", "fastapi"],
+  "entity_terms": ["FastAPI", "Python"],
   "limit": 50,
-  "min_mentions": 2
+  "min_mentions": 1
 }
 ```
 
-**Request Fields**:
-- `entity_terms` (array, required) - Terms to search for
-- `limit` (integer, default: 50) - Max results per term (1-500)
-- `min_mentions` (integer, default: 1) - Minimum mention count
-
-**Response** (200 OK):
-
+**Response (200 OK):**
 ```json
 {
   "success": true,
   "entities": [
     {
-      "entity_id": "4:abc:123",
-      "text": "Python",
-      "normalized": "python",
-      "type_primary": "Language",
-      "type_full": "Programming::Language",
-      "mention_count": 147,
-      "confidence": 0.92
-    },
-    {
-      "entity_id": "4:abc:124",
+      "entity_id": "4:entity:789",
       "text": "FastAPI",
       "normalized": "fastapi",
       "type_primary": "Framework",
       "type_full": "Framework::Backend::Python",
-      "mention_count": 89,
-      "confidence": 0.94
-    }
-  ],
-  "total_found": 2
-}
-```
-
-**Example**:
-
-```bash
-curl -X POST http://localhost:8088/api/v1/search/entities \
-  -H "Content-Type: application/json" \
-  -d '{
-    "entity_terms": ["FastAPI"],
-    "limit": 10
-  }'
-```
-
-## Chunk Retrieval
-
-### POST /api/v1/search/chunks
-
-Retrieve chunks containing specified entities.
-
-**Request**:
-
-```json
-{
-  "entity_names": ["Python", "FastAPI"],
-  "limit": 100,
-  "include_document_info": true
-}
-```
-
-**Request Fields**:
-- `entity_names` (array, optional) - Entity text names
-- `entity_ids` (array, optional) - Neo4j element IDs
-- `limit` (integer, default: 100) - Max chunks (1-1000)
-- `include_document_info` (boolean, default: true) - Include URL/title
-
-**Response** (200 OK):
-
-```json
-{
-  "success": true,
-  "chunks": [
-    {
-      "chunk_id": "4:chunk:567",
-      "vector_rowid": 45123,
-      "chunk_index": 3,
-      "entity_count": 2,
-      "matched_entities": ["Python", "FastAPI"],
-      "document_url": "https://docs.example.com/page",
-      "document_title": "Example Documentation"
+      "mention_count": 127,
+      "confidence": 0.92
     }
   ],
   "total_found": 1
 }
 ```
 
-**Example**:
+**Parameters:**
+- `entity_terms`: Array of search terms (case-insensitive)
+- `limit`: Max results per term (1-500, default 50)
+- `min_mentions`: Minimum mention count (default 1)
 
-```bash
-curl -X POST http://localhost:8088/api/v1/search/chunks \
-  -H "Content-Type: application/json" \
-  -d '{
-    "entity_names": ["FastAPI"],
-    "limit": 50
-  }'
+**Use Cases:**
+- Find entities matching query keywords
+- Get entity mention counts
+- Filter by mention frequency
+
+---
+
+### POST /api/v1/search/chunks
+
+Find chunks containing specified entities.
+
+**Request:**
+```json
+{
+  "entity_names": ["FastAPI", "Pydantic"],
+  "limit": 100,
+  "include_document_info": true
+}
 ```
 
-## Entity Expansion
+**Alternative (by entity IDs):**
+```json
+{
+  "entity_ids": ["4:entity:789", "4:entity:790"],
+  "limit": 100,
+  "include_document_info": true
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "chunks": [
+    {
+      "chunk_id": "4:chunk:12345",
+      "vector_rowid": 45001,
+      "chunk_index": 0,
+      "entity_count": 2,
+      "matched_entities": ["FastAPI", "Pydantic"],
+      "document_url": "https://docs.fastapi.com",
+      "document_title": "FastAPI Documentation"
+    }
+  ],
+  "total_found": 1
+}
+```
+
+**Parameters:**
+- `entity_names` OR `entity_ids`: Entities to search for
+- `limit`: Max chunks to return (1-1000, default 100)
+- `include_document_info`: Include URL/title (default true)
+
+**Use Cases:**
+- Graph-powered retrieval for RAG
+- Find documents containing specific entities
+- Combine with vector search for hybrid retrieval
+
+---
 
 ### POST /api/v1/expand/entities
 
-Discover related entities via graph traversal.
+Discover related entities through graph relationships.
 
-**Request**:
-
+**Request:**
 ```json
 {
   "entity_names": ["FastAPI"],
   "max_expansions": 10,
-  "min_confidence": 0.5,
+  "min_confidence": 0.3,
   "expansion_depth": 1
 }
 ```
 
-**Request Fields**:
-- `entity_names` (array, required) - Starting entities
-- `max_expansions` (integer, default: 10) - Max related entities (1-100)
-- `min_confidence` (float, default: 0.3) - Relationship confidence threshold (0.0-1.0)
-- `expansion_depth` (integer, default: 1) - Traversal depth (1-3)
-
-**Response** (200 OK):
-
+**Response (200 OK):**
 ```json
 {
   "success": true,
   "original_entities": ["FastAPI"],
   "expanded_entities": [
     {
-      "entity_id": "4:abc:125",
+      "entity_id": "4:entity:790",
       "text": "Pydantic",
       "normalized": "pydantic",
       "type_primary": "Library",
-      "type_full": "Programming::Library",
-      "mention_count": 78,
-      "relationship_type": "uses",
+      "type_full": "Library::Python",
+      "mention_count": 89,
+      "relationship_type": "CO_OCCURS",
       "relationship_confidence": 0.9,
-      "path_distance": 1
-    },
-    {
-      "entity_id": "4:abc:126",
-      "text": "Uvicorn",
-      "normalized": "uvicorn",
-      "type_primary": "Server",
-      "type_full": "Web::Server",
-      "mention_count": 45,
-      "relationship_type": "uses",
-      "relationship_confidence": 0.7,
       "path_distance": 1
     }
   ],
-  "total_discovered": 2
+  "total_discovered": 1
 }
 ```
 
-**Example**:
+**Parameters:**
+- `entity_names`: Starting entities for expansion
+- `max_expansions`: Max related entities to return (1-100, default 10)
+- `min_confidence`: Minimum relationship confidence (0.0-1.0, default 0.3)
+- `expansion_depth`: Traversal depth (1-3, default 1)
 
-```bash
-curl -X POST http://localhost:8088/api/v1/expand/entities \
-  -H "Content-Type: application/json" \
-  -d '{
-    "entity_names": ["FastAPI"],
-    "max_expansions": 5,
-    "expansion_depth": 1
-  }'
+**Relationship Confidence:**
+- `cooccurrence_count >= 5`: 0.9 (very strong)
+- `cooccurrence_count >= 3`: 0.7 (strong)
+- `cooccurrence_count >= 2`: 0.5 (moderate)
+
+**Use Cases:**
+- Query expansion for RAG
+- Discover semantically related concepts
+- Build entity recommendation systems
+
+---
+
+## Queue Management
+
+**Authentication Required:** All queue endpoints require Bearer token.
+
+### POST /api/v1/queue/claim-items
+
+Atomically claim pending queue items for processing.
+
+**Request:**
+```json
+{
+  "batch_size": 5,
+  "worker_id": "worker-1"
+}
 ```
 
-## Health & Monitoring
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "items": [
+    {
+      "queue_id": 456,
+      "content_id": 123,
+      "priority": 0,
+      "url": "https://example.com",
+      "title": "Example Document",
+      "markdown": "# Example...",
+      "metadata": {}
+    }
+  ],
+  "claimed_count": 1
+}
+```
+
+**Parameters:**
+- `batch_size`: Max items to claim (1-50, default 5)
+- `worker_id`: Unique worker identifier
+
+---
+
+### GET /api/v1/queue/chunks/{content_id}
+
+Get chunk metadata for content.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "content_id": 123,
+  "chunks": [
+    {
+      "vector_rowid": 45001,
+      "chunk_index": 0,
+      "char_start": 0,
+      "char_end": 2500,
+      "text": "# Example...",
+      "word_count": 450
+    }
+  ]
+}
+```
+
+**Note:** `vector_rowid` equals `content_chunks.rowid` in SQLite.
+
+---
+
+### POST /api/v1/queue/write-results
+
+Write KG processing results back to database.
+
+**Request:**
+```json
+{
+  "content_id": 123,
+  "entities_extracted": 87,
+  "relationships_extracted": 43,
+  "neo4j_document_id": "4:doc:456",
+  "entities": [...],
+  "relationships": [...]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Successfully wrote KG results for content 123"
+}
+```
+
+**Database Updates:**
+1. `crawled_content`: Sets `kg_processed=1`, entity/relationship counts
+2. `chunk_entities`: Inserts all entity appearances
+3. `chunk_relationships`: Inserts all relationships
+4. `content_chunks`: Sets `kg_processed=1`
+
+---
+
+### POST /api/v1/queue/mark-completed
+
+Mark queue item as completed.
+
+**Request:**
+```json
+{
+  "queue_id": 456
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Queue item 456 marked as completed"
+}
+```
+
+---
+
+### POST /api/v1/queue/mark-failed
+
+Mark queue item as failed with retry logic.
+
+**Request:**
+```json
+{
+  "queue_id": 456,
+  "error_message": "vLLM timeout after 1800 seconds",
+  "max_retries": 3
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "retry_count": 1,
+  "new_priority": 1,
+  "new_status": "pending",
+  "message": "Marked item as pending (retry 1/3)"
+}
+```
+
+**Retry Logic:**
+- If `retry_count < max_retries`: Re-queue with increased priority
+- Otherwise: Move to `dead_letter` status
+
+---
+
+### POST /api/v1/queue/mark-stale
+
+Mark stale processing items as long_running.
+
+**Request:**
+```json
+{
+  "stale_minutes": 60
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "marked_count": 2,
+  "message": "Marked 2 stale items as long_running"
+}
+```
+
+---
+
+### GET /api/v1/queue/stats
+
+Get queue statistics by status.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "stats": {
+    "pending": 15,
+    "processing": 3,
+    "completed": 487,
+    "failed": 2,
+    "dead_letter": 0,
+    "long_running": 1,
+    "total": 508
+  }
+}
+```
+
+---
+
+### GET /api/v1/queue/long-running
+
+Get items processing longer than threshold.
+
+**Query Parameters:**
+- `minutes_threshold`: Minutes threshold (default 60)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "items": [
+    {
+      "queue_id": 789,
+      "content_id": 145,
+      "url": "https://example.com/long-doc",
+      "processing_started_at": "2025-11-18T10:30:00Z",
+      "minutes_elapsed": 75.3
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+## Database Access
+
+### GET /api/v1/db/stats
+
+Get vector database statistics.
+
+**Authentication Required**
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "total_documents": 523,
+  "total_chunks": 12456,
+  "total_vectors": 12456,
+  "database_size_mb": 450.2,
+  "avg_chunks_per_doc": 23.8
+}
+```
+
+---
+
+## Monitoring
 
 ### GET /health
 
-Check service health and dependency status.
+Service health check.
 
-**Response** (200 OK):
-
+**Response (200 OK - Healthy):**
 ```json
 {
   "status": "healthy",
-  "timestamp": "2025-10-17T14:32:18.234Z",
+  "timestamp": "2025-11-18T12:00:00Z",
   "services": {
     "neo4j": "connected",
-    "vllm": "available (meta-llama/Llama-3.1-70B-Instruct)",
-    "gliner": "loaded"
+    "vllm": "connected (Qwen/Qwen2.5-7B-Instruct)",
+    "llm_extraction": "available"
   },
   "version": "1.0.0",
   "uptime_seconds": 3600.5
 }
 ```
 
-**Status Values**:
-- `healthy` - All services operational
-- `degraded` - Some non-critical services unavailable
-- `unhealthy` - Critical service unavailable
-
-**Example**:
-
-```bash
-curl http://localhost:8088/health | jq
+**Response (200 OK - Degraded):**
+```json
+{
+  "status": "degraded",
+  "services": {
+    "neo4j": "connected",
+    "vllm": "error: Connection refused",
+    "llm_extraction": "unavailable"
+  }
+}
 ```
+
+**Status Values:**
+- `healthy`: All services operational
+- `degraded`: Some services unavailable
+- `unhealthy`: Critical services down
+
+---
 
 ### GET /stats
 
-Retrieve processing statistics.
+Service processing statistics.
 
-**Response** (200 OK):
-
+**Response (200 OK):**
 ```json
 {
   "total_documents_processed": 523,
   "total_entities_extracted": 45234,
   "total_relationships_extracted": 12456,
-  "avg_processing_time_ms": 8234.5,
-  "last_processed_at": "2025-10-17T14:30:00.000Z",
+  "avg_processing_time_ms": 2341.5,
+  "last_processed_at": "2025-11-18T11:55:00Z",
   "queue_size": 0,
-  "failed_count": 7
+  "failed_count": 2
 }
 ```
 
-**Example**:
+---
 
-```bash
-curl http://localhost:8088/stats | jq
+### GET /api/v1/extraction/status
+
+Get vLLM extraction pipeline status.
+
+**Response (200 OK):**
+```json
+{
+  "status": "healthy",
+  "active_extractions": 2,
+  "total_queued": 1234,
+  "total_completed": 1200,
+  "total_failed": 12,
+  "max_concurrent": 4,
+  "slots_available": 2,
+  "timestamp": "2025-11-18T12:00:00Z"
+}
 ```
+
+**Status Values:**
+- `healthy`: `active_extractions < max_concurrent`
+- `at_capacity`: All slots in use
+
+---
 
 ### GET /api/v1/model-info
 
-Get information about loaded ML models.
+Get loaded model information.
 
-**Response** (200 OK):
-
+**Response (200 OK):**
 ```json
 {
-  "gliner": {
-    "model": "urchade/gliner_large-v2.1",
-    "threshold": 0.4,
-    "status": "loaded",
-    "entity_types_count": 300
-  },
-  "vllm": {
+  "extraction_method": "llm_unified",
+  "entity_min_confidence": 0.4,
+  "augmentation_llm": {
     "base_url": "http://localhost:8078",
-    "model_name": "meta-llama/Llama-3.1-70B-Instruct",
+    "model_name": "Qwen/Qwen2.5-7B-Instruct",
     "status": "connected"
   }
 }
 ```
 
-**Example**:
+---
 
-```bash
-curl http://localhost:8088/api/v1/model-info | jq
-```
+## Data Models
 
-### GET /
-
-Service information endpoint.
-
-**Response** (200 OK):
-
-```json
-{
-  "service": "kg-service",
-  "version": "1.0.0",
-  "status": "running",
-  "docs": "/docs",
-  "health": "/health"
-}
-```
-
-## Error Handling
-
-### Validation Errors (422)
-
-Returned when request validation fails:
-
-```json
-{
-  "detail": [
-    {
-      "loc": ["body", "chunks", 0, "char_end"],
-      "msg": "char_end must be greater than char_start",
-      "type": "value_error"
-    }
-  ]
-}
-```
-
-### Service Errors (500)
-
-Returned when processing fails:
-
-```json
-{
-  "success": false,
-  "error": "Processing failed: vLLM request timeout",
-  "error_type": "ModelUnavailableError",
-  "content_id": 123,
-  "timestamp": "2025-10-17T14:32:18.234Z"
-}
-```
-
-### Service Unavailable (503)
-
-Returned when KG processor not initialized:
-
-```json
-{
-  "success": false,
-  "error": "KG processor not initialized",
-  "error_type": "ServiceUnavailableError",
-  "timestamp": "2025-10-17T14:32:18.234Z"
-}
-```
-
-## Response Models
-
-### Entity Object
+### Entity
 
 ```json
 {
@@ -507,125 +663,154 @@ Returned when KG processor not initialized:
   "type_sub3": null,
   "type_full": "Framework::Backend::Python",
   "confidence": 0.95,
-  "neo4j_node_id": "4:def789:789",
-  "context_before": "modern ",
+  "neo4j_node_id": "4:entity:789",
+  "context_before": "modern web ",
   "context_after": " for building",
-  "sentence": "FastAPI is a modern framework for building APIs.",
+  "sentence": "FastAPI is a modern web framework",
   "chunk_appearances": [
     {
       "vector_rowid": 45001,
       "chunk_index": 0,
-      "offset_start": 120,
-      "offset_end": 127
+      "offset_start": 342,
+      "offset_end": 349
     }
   ],
   "spans_multiple_chunks": false
 }
 ```
 
-### Relationship Object
+### Relationship
 
 ```json
 {
   "subject_text": "FastAPI",
-  "subject_neo4j_id": "4:def789:789",
+  "subject_normalized": "fastapi",
   "predicate": "uses",
   "object_text": "Pydantic",
-  "object_neo4j_id": "4:def789:790",
+  "object_normalized": "pydantic",
   "confidence": 0.88,
   "context": "FastAPI uses Pydantic for data validation",
-  "neo4j_relationship_id": "5:rel123:101",
+  "neo4j_relationship_id": "5:rel:101",
   "spans_chunks": false,
   "chunk_rowids": [45001]
 }
 ```
 
-## Common Entity Types
+### Chunk Metadata
 
-- `Framework::Backend::Python` - Python web frameworks
-- `Library::Validation::Python` - Python validation libraries
-- `Language` - Programming languages
-- `Database` - Database systems
-- `Tool` - Development tools
-- `Concept` - Abstract concepts
-- `Organization` - Companies/teams
-- `Person` - People
-- `Location` - Geographical locations
+```json
+{
+  "vector_rowid": 45001,
+  "chunk_index": 0,
+  "char_start": 0,
+  "char_end": 2500,
+  "text": "# FastAPI\n\nFastAPI is a modern...",
+  "word_count": 450
+}
+```
 
-## Common Relationship Types
+---
 
-- `uses` - Entity A uses Entity B
-- `depends_on` - Requires or depends on
-- `implements` - Implements or provides
-- `extends` - Extends or inherits from
-- `competes_with` - Competes in same space
-- `part_of` - Component of larger system
-- `located_in` - Geographical location
-- `CO_OCCURS_WITH` - Appears together in documents
+## Error Handling
 
-## Python Client Examples
+All endpoints return consistent error responses:
 
-### Basic Entity Extraction
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Error message description",
+  "error_type": "HTTPException",
+  "content_id": 123,
+  "timestamp": "2025-11-18T12:00:00Z"
+}
+```
+
+**Common Status Codes:**
+- `200 OK`: Request succeeded
+- `400 Bad Request`: Invalid request parameters
+- `401 Unauthorized`: Missing or invalid API key
+- `500 Internal Server Error`: Processing failure
+- `503 Service Unavailable`: Dependent service down
+
+---
+
+## Rate Limiting
+
+**Queue Endpoints:**
+- Authentication required via Bearer token
+- No explicit rate limiting (controlled by worker batch size)
+
+**Public Endpoints:**
+- No rate limiting currently implemented
+- Consider implementing for production
+
+---
+
+## Integration Examples
+
+### Python
 
 ```python
 import httpx
-import asyncio
 
-async def extract_entities():
-    client = httpx.AsyncClient()
-
+# Ingest document
+async with httpx.AsyncClient() as client:
     response = await client.post(
         "http://localhost:8088/api/v1/ingest",
         json={
-            "content_id": 1,
+            "content_id": 123,
             "url": "https://example.com",
-            "title": "Test",
-            "markdown": "FastAPI is a web framework using Python.",
-            "chunks": [{
-                "vector_rowid": 1,
-                "chunk_index": 0,
-                "char_start": 0,
-                "char_end": 50,
-                "text": "FastAPI is a web framework using Python."
-            }]
+            "title": "Example",
+            "markdown": "# Example...",
+            "chunks": [...]
         }
     )
-
     result = response.json()
-    print(f"Entities: {result['entities_extracted']}")
-    return result
-
-asyncio.run(extract_entities())
+    print(f"Extracted {result['entities_extracted']} entities")
 ```
 
-### Search and Expand
+### JavaScript
 
-```python
-async def search_and_expand():
-    client = httpx.AsyncClient()
+```javascript
+// Search entities
+const response = await fetch('http://localhost:8088/api/v1/search/entities', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    entity_terms: ['FastAPI'],
+    limit: 50
+  })
+});
 
-    # Search entities
-    search_resp = await client.post(
-        "http://localhost:8088/api/v1/search/entities",
-        json={"entity_terms": ["FastAPI"], "limit": 10}
-    )
-    entities = search_resp.json()['entities']
-
-    # Expand related
-    expand_resp = await client.post(
-        "http://localhost:8088/api/v1/expand/entities",
-        json={"entity_names": ["FastAPI"], "max_expansions": 5}
-    )
-    expanded = expand_resp.json()['expanded_entities']
-
-    print(f"Found {len(entities)} entities")
-    print(f"Expanded to {len(expanded)} related entities")
-
-asyncio.run(search_and_expand())
+const data = await response.json();
+console.log(`Found ${data.total_found} entities`);
 ```
+
+### cURL
+
+```bash
+# Check health
+curl http://localhost:8088/health
+
+# Get queue stats (with auth)
+curl http://localhost:8088/api/v1/queue/stats \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+---
+
+## Performance Tips
+
+1. **Batch Processing:** Use queue system for high throughput
+2. **Parallel Requests:** Search/expand endpoints are fast and can run concurrently
+3. **Timeouts:** Set appropriate client timeouts for large documents (30-60s)
+4. **Monitoring:** Use `/api/v1/extraction/status` to avoid overwhelming vLLM
+
+---
 
 ## Next Steps
 
-- [Getting Started](getting-started.html) - Installation and usage
-- [Configuration](configuration.html) - Configuration options
-- [Architecture](architecture.html) - System design
+- **Getting Started:** See [Getting Started](getting-started.md) for usage examples
+- **Architecture:** Review [Architecture](architecture.md) for pipeline details
+- **Configuration:** Check [Configuration](configuration.md) for tuning parameters

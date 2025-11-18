@@ -2,440 +2,253 @@
 layout: default
 title: API Reference
 parent: robaitragmcp
-nav_order: 3
+nav_order: 5
 ---
 
 # API Reference
 
-Complete documentation of all robaitragmcp MCP tools.
+MCP protocol methods and dynamically discovered tools.
 
-## MCP Tools Overview
+## MCP Protocol Methods
 
-robaitragmcp exposes 15+ tools via the Model Context Protocol (JSON-RPC 2.0).
+### initialize
 
-| Tool | Purpose | Input | Output |
-|------|---------|-------|--------|
-| `crawl_url` | Extract web content | url, selector | content, metadata |
-| `search` | Full-text search | query, tags, limit | results array |
-| `vector_search` | Semantic similarity | query, limit, threshold | results with scores |
-| `get_memory` | Retrieve stored content | id | full content |
-| `create_tag` | Create content tag | name, description | tag_id |
-| `list_tags` | List all tags | - | tags array |
-| `update_memory` | Update content | id, updates | status |
-| `delete_memory` | Remove content | id | deleted_id |
-| `export_content` | Export data | format, tags | exported data |
-| `clear_memory` | Wipe all data | confirm | status |
+Initialize MCP connection.
 
-## Web Crawling
-
-### crawl_url
-
-Extract content from a web page using Crawl4AI.
-
-**Input**:
+**Request:**
 ```json
 {
-  "url": "https://example.com",
-  "selector": "main",
-  "wait_for_element": ".content",
-  "timeout": 30
-}
-```
-
-**Parameters**:
-- `url` (string, required) - Web page URL
-- `selector` (string, optional) - CSS selector to extract
-- `wait_for_element` (string, optional) - Wait for element before extracting
-- `timeout` (integer, optional) - Timeout in seconds
-
-**Output**:
-```json
-{
-  "success": true,
-  "url": "https://example.com",
-  "title": "Page Title",
-  "content": "Extracted markdown content",
-  "metadata": {
-    "description": "Meta description",
-    "keywords": "tag1, tag2",
-    "timestamp": "2025-10-17T14:30:00Z"
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "clientInfo": {"name": "client-name"}
   }
 }
 ```
 
-**Example**:
-```python
-crawl_result = call_mcp_tool("crawl_url",
-    url="https://docs.python.org/3/library/asyncio.html",
-    timeout=30
-)
-```
-
-## Search Operations
-
-### search
-
-Full-text search across indexed content.
-
-**Input**:
+**Response:**
 ```json
 {
-  "query": "python async patterns",
-  "tags": ["python", "asyncio"],
-  "limit": 5,
-  "fuzzy": true
-}
-```
-
-**Parameters**:
-- `query` (string, required) - Search query
-- `tags` (array, optional) - Filter by tags
-- `limit` (integer, default: 10) - Max results
-- `fuzzy` (boolean, default: false) - Fuzzy matching
-
-**Output**:
-```json
-{
-  "results": [
-    {
-      "id": "memory-123",
-      "title": "Asyncio Documentation",
-      "url": "https://docs.python.org",
-      "relevance": 0.95,
-      "snippet": "asyncio is a library to write concurrent code...",
-      "tags": ["python", "asyncio"]
-    }
-  ],
-  "total": 5
-}
-```
-
-**Example**:
-```python
-results = call_mcp_tool("search",
-    query="python async patterns",
-    tags=["python"],
-    limit=5
-)
-```
-
-### vector_search
-
-Semantic similarity search using embeddings.
-
-**Input**:
-```json
-{
-  "query": "how to implement concurrent operations",
-  "limit": 10,
-  "threshold": 0.7,
-  "tags": ["python"]
-}
-```
-
-**Parameters**:
-- `query` (string, required) - Search query
-- `limit` (integer, default: 10) - Max results
-- `threshold` (float, default: 0.5) - Similarity threshold
-- `tags` (array, optional) - Filter by tags
-
-**Output**:
-```json
-{
-  "results": [
-    {
-      "id": "chunk-456",
-      "text": "Chunk preview text...",
-      "similarity": 0.89,
-      "source_id": "memory-123",
-      "source_title": "Asyncio Tutorial",
-      "source_url": "https://docs.python.org"
-    }
-  ],
-  "count": 8
-}
-```
-
-**Example**:
-```python
-semantic = call_mcp_tool("vector_search",
-    query="concurrent programming in Python",
-    limit=5,
-    threshold=0.75
-)
-```
-
-## Content Management
-
-### get_memory
-
-Retrieve full content by ID.
-
-**Input**:
-```json
-{
-  "id": "memory-123"
-}
-```
-
-**Output**:
-```json
-{
-  "id": "memory-123",
-  "url": "https://docs.python.org",
-  "title": "Asyncio Documentation",
-  "content": "Full markdown content...",
-  "tags": ["python", "asyncio"],
-  "created_at": "2025-10-17T12:00:00Z",
-  "updated_at": "2025-10-17T14:30:00Z"
-}
-```
-
-### update_memory
-
-Modify stored content.
-
-**Input**:
-```json
-{
-  "id": "memory-123",
-  "title": "New Title",
-  "tags": ["python", "asyncio", "concurrency"]
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "id": "memory-123",
-  "updated_fields": ["title", "tags"]
-}
-```
-
-### delete_memory
-
-Remove content from memory.
-
-**Input**:
-```json
-{
-  "id": "memory-123"
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "deleted_id": "memory-123"
-}
-```
-
-## Tag Management
-
-### create_tag
-
-Create new content tag.
-
-**Input**:
-```json
-{
-  "name": "python/asyncio",
-  "description": "Python asyncio patterns and tutorials",
-  "color": "#3776ab"
-}
-```
-
-**Output**:
-```json
-{
-  "tag_id": "tag-789",
-  "name": "python/asyncio",
-  "description": "Python asyncio patterns and tutorials",
-  "created_at": "2025-10-17T14:30:00Z"
-}
-```
-
-### list_tags
-
-List all available tags.
-
-**Output**:
-```json
-{
-  "tags": [
-    {
-      "tag_id": "tag-1",
-      "name": "python",
-      "description": "Python language resources",
-      "count": 45
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "serverInfo": {
+      "name": "robaimcp",
+      "version": "1.0.0"
     },
-    {
-      "tag_id": "tag-2",
-      "name": "python/asyncio",
-      "description": "Python asyncio patterns",
-      "count": 12
-    }
-  ],
-  "total": 24
-}
-```
-
-## Data Management
-
-### export_content
-
-Export stored content in various formats.
-
-**Input**:
-```json
-{
-  "format": "markdown",
-  "tags": ["python"],
-  "include_metadata": true
-}
-```
-
-**Parameters**:
-- `format` (string) - Export format: markdown, json, html
-- `tags` (array, optional) - Filter by tags
-- `include_metadata` (boolean, default: true)
-
-**Output**:
-```json
-{
-  "format": "markdown",
-  "content": "# Python Resources\n\n## Asyncio\n...",
-  "file_size": 125000,
-  "item_count": 15
-}
-```
-
-### clear_memory
-
-Remove all stored content (requires confirmation).
-
-**Input**:
-```json
-{
-  "confirm": true
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "deleted_items": 42,
-  "freed_space_mb": 125
-}
-```
-
-## Error Handling
-
-All tools return error responses on failure:
-
-```json
-{
-  "error": true,
-  "code": "NOT_FOUND",
-  "message": "Content with id 'memory-123' not found",
-  "details": {
-    "id": "memory-123"
+    "capabilities": {"tools": {}}
   }
 }
 ```
 
-**Common Error Codes**:
-- `NOT_FOUND` - Content not found
-- `INVALID_INPUT` - Malformed input
-- `DATABASE_ERROR` - Storage issue
-- `CRAWL_FAILED` - Web extraction failed
-- `RATE_LIMITED` - Too many requests
+### tools/list
+
+List all available tools.
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "tools": [
+      {
+        "name": "crawler_crawl_url",
+        "description": "Crawl a URL and extract content",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {"type": "string"},
+            "tags": {"type": "string"}
+          },
+          "required": ["url"]
+        }
+      }
+      // ... all discovered tools
+    ]
+  }
+}
+```
+
+### tools/call
+
+Execute a tool.
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "crawler_search_knowledge",
+    "arguments": {
+      "query": "python async",
+      "limit": 5
+    }
+  }
+}
+```
+
+**Response (Success):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Found 5 results: ..."
+      }
+    ],
+    "isError": false
+  }
+}
+```
+
+**Response (Error):**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Error: Tool timeout after 60s"
+      }
+    ],
+    "isError": true
+  }
+}
+```
+
+## Dynamically Discovered Tools
+
+Tools are discovered from robaimodeltools at startup. Exact list depends on robaimodeltools version.
+
+### Crawler Tools (from Crawl4AIRAG)
+
+**crawler_crawl_url**
+- Description: Crawl single URL and extract content
+- Parameters: url (required), tags, retention_policy
+- Returns: Success message with chunk count
+
+**crawler_search_knowledge**
+- Description: Search knowledge base with semantic search
+- Parameters: query (required), limit, tags
+- Returns: Search results with scores
+
+**crawler_add_blocked_domain**
+- Description: Block domain pattern from crawling
+- Parameters: pattern (required)
+- Returns: Confirmation message
+
+**crawler_deep_crawl**
+- Description: Recursively crawl from starting URL
+- Parameters: start_url (required), max_depth, max_pages
+- Returns: Crawl summary with URLs processed
+
+### Search Tools (from SearchHandler)
+
+**search_handler_search**
+- Description: Semantic search in knowledge base
+- Parameters: query (required), limit
+- Returns: Search results with relevance scores
+
+**search_handler_hybrid_search**
+- Description: Combined vector + graph search
+- Parameters: query (required), limit
+- Returns: Enhanced search results
+
+### Complete Tool List
+
+To get the exact current tool list:
+```bash
+# Connect and list tools
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | nc localhost 3000
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | nc localhost 3000
+
+# Or check logs
+docker compose logs robaitragmcp | grep "Discovered"
+```
+
+## Error Codes
+
+JSON-RPC 2.0 standard error codes:
+
+- `-32700`: Parse error (invalid JSON)
+- `-32600`: Invalid request
+- `-32601`: Method not found
+- `-32602`: Invalid params
+- `-32603`: Internal error (includes timeout)
+
+MCP-specific error codes:
+
+- `-32000`: Tool not found
+- `-32001`: Tool execution error
+- `-32002`: Discovery error
 
 ## Integration Examples
 
-### With Claude API
+### Python TCP Client
 
 ```python
-import anthropic
+import socket, json
 
-# Configure tools
-tools = [
-    {
-        "name": "crawl_url",
-        "description": "Extract content from web page",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "url": {"type": "string"},
-                "timeout": {"type": "integer"}
-            },
-            "required": ["url"]
-        }
-    },
-    {
-        "name": "search",
-        "description": "Search indexed content",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "limit": {"type": "integer"}
-            },
-            "required": ["query"]
-        }
+sock = socket.socket()
+sock.connect(('localhost', 3000))
+
+# Initialize
+sock.sendall(b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')
+print(sock.recv(4096).decode())
+
+# List tools
+sock.sendall(b'{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n')
+print(sock.recv(8192).decode())
+
+# Call tool
+msg = {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+        "name": "crawler_search_knowledge",
+        "arguments": {"query": "python", "limit": 3}
     }
-]
+}
+sock.sendall((json.dumps(msg) + '\n').encode())
+print(sock.recv(4096).decode())
 
-# Use with Claude
-client = anthropic.Anthropic()
-response = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
-    max_tokens=1024,
-    tools=tools,
-    messages=[
-        {
-            "role": "user",
-            "content": "Search for Python asyncio information and summarize"
-        }
-    ]
-)
+sock.close()
 ```
 
-### Batch Operations
+### Via robairagapi REST API
 
-```python
-# Crawl multiple pages
-urls = [
-    "https://docs.python.org/3/library/asyncio.html",
-    "https://peps.python.org/pep-3156/",
-    "https://example.com/async-tutorial"
-]
-
-results = []
-for url in urls:
-    result = call_mcp_tool("crawl_url", url=url)
-    results.append(result)
-
-# Tag all
-for result in results:
-    call_mcp_tool("create_tag", name="python/asyncio")
+```bash
+# robairagapi uses robaitragmcp internally
+curl -X POST http://localhost:8081/api/v1/search \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{"query": "python async", "limit": 5}'
 ```
-
-## Rate Limiting
-
-Tools have per-session rate limits:
-- `crawl_url`: 10 per minute
-- `search`: 100 per minute
-- `vector_search`: 50 per minute
-- All other tools: 200 per minute
-
-Exceeding limits returns `RATE_LIMITED` error.
 
 ## Next Steps
 
-- [Getting Started](getting-started.html) - Installation and usage
-- [Configuration](configuration.html) - Environment settings
-- [Architecture](architecture.html) - System design
+- **Getting Started:** See [Getting Started](getting-started.md)
+- **Architecture:** Review [Architecture](architecture.md)
+- **Configuration:** Check [Configuration](configuration.md)

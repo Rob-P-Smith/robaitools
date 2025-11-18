@@ -2,802 +2,728 @@
 layout: default
 title: Configuration
 parent: robaikg
-nav_order: 2
+nav_order: 3
 ---
 
 # Configuration
 
-Complete configuration reference for robaikg Knowledge Graph service.
-
-## Overview
-
-robaikg uses environment variables for configuration, loaded from a `.env` file in the robaikg directory. The configuration system includes validation, default values, and integrates with FastAPI and Neo4j.
-
-## Configuration File
-
-### Location
-
-```
-robaikg/
-  ├── .env              # Your configuration (not committed)
-  ├── .env.example      # Template with documentation
-  └── kg-service/
-      └── config.py     # Configuration loader
-```
-
-### Creating Configuration
-
-```bash
-# Copy template
-cp .env.example .env
-
-# Edit with your settings
-nano .env
-```
+Complete configuration reference for robaikg knowledge graph service.
 
 ## Environment Variables
 
+All configuration is managed through environment variables, typically set in the `.env` file at the repository root.
+
 ### Service Configuration
 
-Configure service identification and runtime mode.
+**KG_SERVICE_PORT**
+- Type: Integer
+- Default: `8088`
+- Description: HTTP API port for kg-service
+- Example: `KG_SERVICE_PORT=8088`
 
-#### SERVICE_NAME
+**API_HOST**
+- Type: String
+- Default: `0.0.0.0`
+- Description: Bind address for kg-service
+- Example: `API_HOST=0.0.0.0` (all interfaces)
 
-**Default**: `kg-service`
+**DEBUG**
+- Type: Boolean
+- Default: `false`
+- Description: Enable debug mode (auto-reload, verbose logging)
+- Example: `DEBUG=true`
 
-**Description**: Service identifier (used in logs and API responses)
-
-**Example**:
-```bash
-SERVICE_NAME=kg-service
-```
-
-#### SERVICE_VERSION
-
-**Default**: `1.0.0`
-
-**Description**: Service version string
-
-**Example**:
-```bash
-SERVICE_VERSION=1.0.0
-```
-
-#### DEBUG
-
-**Default**: `false`
-
-**Description**: Enable debug mode (verbose logging, auto-reload)
-
-**Example**:
-```bash
-DEBUG=true  # Development only
-```
-
-#### LOG_LEVEL
-
-**Default**: `INFO`
-
-**Description**: Logging verbosity level
-
-**Example**:
-```bash
-LOG_LEVEL=INFO
-```
-
-**Options**:
-- `DEBUG` - Detailed debugging information
-- `INFO` - General informational messages (recommended)
-- `WARNING` - Warning messages only
-- `ERROR` - Error messages only
-- `CRITICAL` - Critical errors only
-
-**Recommended Values**:
-- Development: `DEBUG`
-- Production: `INFO`
-- Troubleshooting: `DEBUG`
-
-### API Configuration
-
-Configure HTTP server settings.
-
-#### API_HOST
-
-**Default**: `0.0.0.0`
-
-**Description**: Network interface to bind to
-
-**Example**:
-```bash
-API_HOST=0.0.0.0
-```
-
-**Options**:
-- `0.0.0.0` - All interfaces (default)
-- `127.0.0.1` - Localhost only (development)
-- Specific IP - Bind to specific interface
-
-#### API_PORT
-
-**Default**: `8088`
-
-**Description**: Port number for the service
-
-**Example**:
-```bash
-API_PORT=8088
-```
-
-**Notes**:
-- Must not conflict with other services
-- Ensure firewall allows traffic if remote access needed
+**LOG_LEVEL**
+- Type: String
+- Default: `INFO`
+- Options: `DEBUG`, `INFO`, `WARNING`, `ERROR`
+- Description: Logging verbosity level
+- Example: `LOG_LEVEL=INFO`
 
 ### Neo4j Configuration
 
-Configure Neo4j graph database connection.
+**NEO4J_URI**
+- Type: String
+- Default: `bolt://localhost:7687`
+- Description: Neo4j Bolt protocol connection string
+- Example: `NEO4J_URI=bolt://localhost:7687`
+- Note: Use `bolt://` for unencrypted, `bolt+s://` for encrypted
 
-#### NEO4J_URI
+**NEO4J_USER**
+- Type: String
+- Default: `neo4j`
+- Description: Neo4j authentication username
+- Example: `NEO4J_USER=neo4j`
 
-**Default**: `bolt://neo4j-kg:7687`
+**NEO4J_PASSWORD**
+- Type: String
+- Default: `knowledge_graph_2024`
+- Description: Neo4j authentication password
+- Example: `NEO4J_PASSWORD=your_secure_password`
+- **Security:** Change from default in production
 
-**Description**: Neo4j connection URI (Bolt protocol)
+**NEO4J_DATABASE**
+- Type: String
+- Default: `neo4j`
+- Description: Neo4j database name (Enterprise Edition supports multiple)
+- Example: `NEO4J_DATABASE=neo4j`
 
-**Example**:
-```bash
-NEO4J_URI=bolt://localhost:7687
-```
+**NEO4J_HEAP_MAX_SIZE**
+- Type: String
+- Default: `16G`
+- Description: Maximum JVM heap size for Neo4j
+- Example: `NEO4J_HEAP_MAX_SIZE=16G`
+- Recommendations:
+  - 8GB system: `2G`
+  - 16GB system: `8G`
+  - 32GB+ system: `16G`
 
-**Notes**:
-- Include `bolt://` protocol prefix
-- For remote Neo4j: `bolt://neo4j-host:7687`
-- For TLS: Use `bolt+s://` instead of `bolt://`
-
-#### NEO4J_USER
-
-**Default**: `neo4j`
-
-**Description**: Neo4j database username
-
-**Example**:
-```bash
-NEO4J_USER=neo4j
-```
-
-#### NEO4J_PASSWORD
-
-**Default**: `knowledge_graph_2024`
-
-**Description**: Neo4j database password
-
-**Example**:
-```bash
-NEO4J_PASSWORD=knowledge_graph_2024
-```
-
-**Security Note**: Always override in production via environment variable
-
-#### NEO4J_DATABASE
-
-**Default**: `neo4j`
-
-**Description**: Neo4j database name
-
-**Example**:
-```bash
-NEO4J_DATABASE=neo4j
-```
-
-#### NEO4J_MAX_CONNECTION_LIFETIME
-
-**Default**: `3600`
-
-**Description**: Connection lifetime in seconds before recreation
-
-**Example**:
-```bash
-NEO4J_MAX_CONNECTION_LIFETIME=3600
-```
-
-**Notes**: Not configurable via environment (fixed in config.py)
-
-#### NEO4J_MAX_CONNECTION_POOL_SIZE
-
-**Default**: `50`
-
-**Description**: Maximum connections in pool
-
-**Example**:
-```bash
-NEO4J_MAX_CONNECTION_POOL_SIZE=50
-```
-
-**Recommended Values**:
-- Small systems: 10-20
-- Medium systems: 30-50
-- Large systems: 50-100
-
-#### NEO4J_CONNECTION_TIMEOUT
-
-**Default**: `30`
-
-**Description**: Connection timeout in seconds
-
-**Example**:
-```bash
-NEO4J_CONNECTION_TIMEOUT=30
-```
+**NEO4J_PAGECACHE_SIZE**
+- Type: String
+- Default: `2G`
+- Description: Neo4j page cache size for disk access
+- Example: `NEO4J_PAGECACHE_SIZE=2G`
+- Recommendations:
+  - 8GB system: `1G`
+  - 16GB system: `2G`
+  - 32GB+ system: `4G`
 
 ### vLLM Configuration
 
-Configure vLLM inference server for relationship extraction.
+**AUGMENT_LLM_URL**
+- Type: String
+- Default: `http://localhost:8078`
+- Description: vLLM server base URL for entity/relationship extraction
+- Example: `AUGMENT_LLM_URL=http://192.168.10.50:8078`
+- Note: Must be accessible from kg-service container
+
+**VLLM_TIMEOUT**
+- Type: Integer (seconds)
+- Default: `1800` (30 minutes)
+- Description: Timeout for vLLM extraction requests
+- Example: `VLLM_TIMEOUT=3600` (1 hour for very large documents)
+- Recommendations:
+  - Small docs (< 10K words): `600` (10 min)
+  - Medium docs (10-50K words): `1800` (30 min)
+  - Large docs (> 50K words): `3600` (1 hour)
+
+### Extraction Configuration
+
+**ENTITY_MIN_CONFIDENCE**
+- Type: Float (0.0 - 1.0)
+- Default: `0.4`
+- Description: Minimum confidence threshold for entity extraction
+- Example: `ENTITY_MIN_CONFIDENCE=0.45`
+- Impact:
+  - Lower (0.3): More entities, more noise
+  - Default (0.4): Balanced precision/recall
+  - Higher (0.6): Fewer entities, higher precision
+
+**RELATION_MIN_CONFIDENCE**
+- Type: Float (0.0 - 1.0)
+- Default: `0.45`
+- Description: Minimum confidence threshold for relationship extraction
+- Example: `RELATION_MIN_CONFIDENCE=0.5`
+- Impact:
+  - Lower (0.3): More relationships, more noise
+  - Default (0.45): Balanced precision/recall
+  - Higher (0.6): Fewer relationships, higher accuracy
+
+### Background Worker Configuration
+
+**KG_NUM_WORKERS**
+- Type: Integer
+- Default: `1`
+- Description: Number of concurrent queue processing workers
+- Example: `KG_NUM_WORKERS=2`
+- Recommendations:
+  - Light load (< 100 docs/hour): `1`
+  - Medium load (100-500 docs/hour): `2`
+  - Heavy load (> 500 docs/hour): `4`
+- **Warning:** More than 4 workers may cause SQLite lock contention
+
+**KG_POLL_INTERVAL**
+- Type: Float (seconds)
+- Default: `5.0`
+- Description: Seconds between queue polling attempts
+- Example: `KG_POLL_INTERVAL=10.0`
+- Impact:
+  - Lower (2.0): Faster pickup, more CPU usage
+  - Default (5.0): Balanced responsiveness
+  - Higher (15.0): Slower pickup, less CPU usage
+
+**KG_BATCH_SIZE**
+- Type: Integer
+- Default: `5`
+- Description: Number of queue items claimed per poll
+- Example: `KG_BATCH_SIZE=10`
+- **Note:** Not configurable via environment (hardcoded in worker)
+
+**KG_DASHBOARD_ENABLED**
+- Type: Boolean
+- Default: `true`
+- Description: Enable web dashboard on port 8090
+- Example: `KG_DASHBOARD_ENABLED=false`
+
+### Database Configuration
+
+**DB_PATH**
+- Type: String
+- Default: `/data/crawl4ai_rag.db`
+- Description: Path to SQLite database file
+- Example: `DB_PATH=/mnt/data/crawl4ai_rag.db`
+- **Note:** Must be accessible from kg-service container
+
+**USE_MEMORY_DB**
+- Type: Boolean
+- Default: `true`
+- Description: Use in-memory SQLite with differential sync
+- Example: `USE_MEMORY_DB=false`
+- Impact:
+  - `true`: 10x faster, requires RAM
+  - `false`: Slower, no extra RAM needed
+
+### Authentication Configuration
+
+**OPENAI_API_KEY**
+- Type: String
+- Required: Yes
+- Description: API key for queue endpoint authentication
+- Example: `OPENAI_API_KEY=sk-your-api-key-here`
+- **Security:** Keep secret, rotate regularly
 
-#### VLLM_BASE_URL
+## Configuration Profiles
 
-**Default**: `http://localhost:8078`
+### Development Profile
 
-**Description**: vLLM API base URL
-
-**Example**:
-```bash
-VLLM_BASE_URL=http://localhost:8078
-```
-
-**Notes**:
-- Required for relationship extraction
-- Used for LLM inference (relationship discovery)
-
-#### VLLM_TIMEOUT
-
-**Default**: `1800`
-
-**Description**: Timeout in seconds for vLLM requests
-
-**Example**:
-```bash
-VLLM_TIMEOUT=1800
-```
-
-**Notes**:
-- 1800 seconds = 30 minutes
-- Set higher for large documents
-- Lower values fail faster on network issues
-
-**Recommended Values**:
-- Entity extraction only: `300` (5 minutes)
-- Standard operation: `1800` (30 minutes)
-- Deep analysis: `3600` (1 hour)
-
-#### VLLM_MAX_RETRIES
-
-**Default**: `3`
-
-**Description**: Number of retry attempts on failure
-
-**Example**:
-```bash
-VLLM_MAX_RETRIES=3
-```
-
-#### VLLM_RETRY_INTERVAL
-
-**Default**: `30`
-
-**Description**: Seconds between retry attempts
-
-**Example**:
-```bash
-VLLM_RETRY_INTERVAL=30
-```
-
-### GLiNER Configuration
-
-Configure GLiNER model for entity extraction.
-
-#### GLINER_MODEL
-
-**Default**: `urchade/gliner_large-v2.1`
-
-**Description**: HuggingFace model ID for entity extraction
-
-**Example**:
-```bash
-GLINER_MODEL=urchade/gliner_large-v2.1
-```
-
-**Notes**:
-- Model automatically downloaded on first use
-- ~4GB download, requires 4GB RAM
-- Alternative: `urchade/gliner_base-v0.9` (smaller, faster)
-
-#### GLINER_THRESHOLD
-
-**Default**: `0.45`
-
-**Description**: Confidence threshold for entity extraction (0.0-1.0)
-
-**Example**:
-```bash
-GLINER_THRESHOLD=0.45
-```
-
-**Recommended Values**:
-- High recall (more entities): `0.3`
-- Balanced (default): `0.45`
-- High precision (fewer entities): `0.6`
-
-#### GLINER_BATCH_SIZE
-
-**Default**: `8`
-
-**Description**: Batch size for model processing
-
-**Example**: Not configurable via environment (fixed at 8)
-
-#### GLINER_MAX_LENGTH
-
-**Default**: `384`
-
-**Description**: Maximum token length for GLiNER (model limit)
-
-**Example**: Not configurable via environment (fixed at 384)
-
-### Entity Extraction Settings
-
-#### ENTITY_MIN_CONFIDENCE
-
-**Default**: `0.4` (linked to GLINER_THRESHOLD)
-
-**Description**: Minimum confidence for extracted entities
-
-**Example**:
-```bash
-GLINER_THRESHOLD=0.4
-```
-
-**Notes**: Uses same value as GLINER_THRESHOLD
-
-#### ENTITY_DEDUPLICATION
-
-**Default**: `True`
-
-**Description**: Enable entity deduplication
-
-**Example**: Not configurable via environment (always enabled)
-
-### Relationship Extraction Settings
-
-#### RELATION_MIN_CONFIDENCE
-
-**Default**: `0.45`
-
-**Description**: Minimum confidence for relationships (0.0-1.0)
-
-**Example**:
-```bash
-RELATION_MIN_CONFIDENCE=0.45
-```
-
-**Recommended Values**:
-- High recall: `0.3`
-- Balanced (default): `0.45`
-- High precision: `0.7`
-
-#### RELATION_MAX_DISTANCE
-
-**Default**: `3`
-
-**Description**: Maximum sentence distance for relationships
-
-**Example**: Not configurable via environment (fixed at 3)
-
-#### RELATION_CONTEXT_WINDOW
-
-**Default**: `200`
-
-**Description**: Characters of context for relationship extraction
-
-**Example**: Not configurable via environment (fixed at 200)
-
-### Processing Settings
-
-#### MAX_CONCURRENT_REQUESTS
-
-**Default**: `8`
-
-**Description**: Maximum parallel document processing requests
-
-**Example**: Not configurable via environment (fixed at 8)
-
-**Recommended Values**:
-- Single machine: 2-4
-- High-capacity machine: 4-8
-- Cluster: 8-16
-
-#### REQUEST_TIMEOUT
-
-**Default**: `300`
-
-**Description**: Timeout for individual requests in seconds
-
-**Example**: Not configurable via environment (fixed at 300)
-
-#### ENABLE_ASYNC_PROCESSING
-
-**Default**: `True`
-
-**Description**: Enable async/await throughout service
-
-**Example**: Not configurable via environment (always enabled)
-
-### Document Processing
-
-#### MAX_DOCUMENT_LENGTH
-
-**Default**: `100000`
-
-**Description**: Maximum document size in characters
-
-**Example**: Not configurable via environment (fixed at 100,000)
-
-#### CHUNK_SIZE
-
-**Default**: `2000`
-
-**Description**: Character size for document chunks in GLiNER processing
-
-**Example**: Not configurable via environment (fixed at 2000)
-
-#### CHUNK_OVERLAP
-
-**Default**: `200`
-
-**Description**: Character overlap between chunks
-
-**Example**: Not configurable via environment (fixed at 200)
-
-## Complete Configuration Examples
-
-### Development Configuration
+**Purpose:** Local development with minimal resource usage.
 
 ```bash
 # Service
-SERVICE_NAME=kg-service
-SERVICE_VERSION=1.0.0
 DEBUG=true
 LOG_LEVEL=DEBUG
 
-# API
-API_HOST=127.0.0.1
-API_PORT=8088
-
-# Neo4j
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=knowledge_graph_2024
-NEO4J_DATABASE=neo4j
-NEO4J_MAX_CONNECTION_POOL_SIZE=10
+# Neo4j (lightweight)
+NEO4J_HEAP_MAX_SIZE=2G
+NEO4J_PAGECACHE_SIZE=1G
 
 # vLLM
-VLLM_BASE_URL=http://localhost:8078
-VLLM_TIMEOUT=300
+VLLM_TIMEOUT=600
 
-# GLiNER
-GLINER_MODEL=urchade/gliner_large-v2.1
-GLINER_THRESHOLD=0.45
+# Extraction (permissive)
+ENTITY_MIN_CONFIDENCE=0.3
+RELATION_MIN_CONFIDENCE=0.3
 
-# Relationships
-RELATION_MIN_CONFIDENCE=0.45
+# Workers (single)
+KG_NUM_WORKERS=1
+KG_POLL_INTERVAL=10.0
+KG_DASHBOARD_ENABLED=true
+
+# Database (disk mode)
+USE_MEMORY_DB=false
 ```
 
-### Production Configuration
+**Characteristics:**
+- Low memory usage (~2GB total)
+- Slower processing (disk I/O)
+- More entities/relationships (lower thresholds)
+- Single worker, slow polling
+- Dashboard enabled for monitoring
+
+### Production Profile
+
+**Purpose:** High-throughput production deployment.
 
 ```bash
 # Service
-SERVICE_NAME=kg-service
-SERVICE_VERSION=1.0.0
 DEBUG=false
 LOG_LEVEL=INFO
 
-# API
-API_HOST=0.0.0.0
-API_PORT=8088
-
-# Neo4j
-NEO4J_URI=bolt://neo4j-cluster:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=<secure-password-here>
-NEO4J_DATABASE=neo4j
-NEO4J_MAX_CONNECTION_POOL_SIZE=50
+# Neo4j (optimized)
+NEO4J_HEAP_MAX_SIZE=16G
+NEO4J_PAGECACHE_SIZE=4G
 
 # vLLM
-VLLM_BASE_URL=http://vllm-service:8078
 VLLM_TIMEOUT=1800
 
-# GLiNER
-GLINER_MODEL=urchade/gliner_large-v2.1
-GLINER_THRESHOLD=0.45
+# Extraction (balanced)
+ENTITY_MIN_CONFIDENCE=0.4
+RELATION_MIN_CONFIDENCE=0.45
 
-# Relationships
-RELATION_MIN_CONFIDENCE=0.5
+# Workers (parallel)
+KG_NUM_WORKERS=4
+KG_POLL_INTERVAL=5.0
+KG_DASHBOARD_ENABLED=true
+
+# Database (RAM mode)
+USE_MEMORY_DB=true
 ```
 
-### High-Precision Configuration
+**Characteristics:**
+- High memory usage (~20GB total)
+- Fast processing (RAM + multiple workers)
+- Balanced precision/recall
+- 4 workers, fast polling
+- Dashboard for monitoring
 
-For fewer, higher-confidence entities and relationships:
+### High-Precision Profile
+
+**Purpose:** Maximize extraction quality over speed.
 
 ```bash
-# Stricter thresholds
-GLINER_THRESHOLD=0.60
-RELATION_MIN_CONFIDENCE=0.70
+# Extraction (strict)
+ENTITY_MIN_CONFIDENCE=0.6
+RELATION_MIN_CONFIDENCE=0.65
 
-# Longer timeouts for thorough analysis
+# vLLM (allow more time)
 VLLM_TIMEOUT=3600
 
-# Connection pool for high concurrency
-NEO4J_MAX_CONNECTION_POOL_SIZE=80
+# Workers (sequential, careful)
+KG_NUM_WORKERS=1
+KG_POLL_INTERVAL=10.0
 ```
 
-### High-Recall Configuration
+**Characteristics:**
+- Fewer but higher-quality entities/relationships
+- Longer processing time per document
+- Single worker prevents concurrent processing
+- Suitable for critical documents
 
-For more entities and relationships:
+### High-Throughput Profile
+
+**Purpose:** Maximum documents processed per hour.
 
 ```bash
-# Lenient thresholds
-GLINER_THRESHOLD=0.30
-RELATION_MIN_CONFIDENCE=0.30
+# Neo4j (max resources)
+NEO4J_HEAP_MAX_SIZE=24G
+NEO4J_PAGECACHE_SIZE=8G
 
-# Faster processing
-VLLM_TIMEOUT=900
+# Workers (maximum safe)
+KG_NUM_WORKERS=4
+KG_POLL_INTERVAL=2.0
 
-# Standard connection pool
-NEO4J_MAX_CONNECTION_POOL_SIZE=50
+# Database (RAM mode required)
+USE_MEMORY_DB=true
+
+# vLLM (aggressive timeout)
+VLLM_TIMEOUT=900  # 15 min (may skip very large docs)
 ```
 
-## Configuration Validation
+**Characteristics:**
+- ~600-800 docs/hour (depending on doc size)
+- Requires 32GB+ system RAM
+- Fast polling, max workers
+- May timeout on very large documents
 
-The configuration system validates critical settings on startup.
+## Docker Configuration
 
-### Required Variables
+### Docker Compose Settings
 
-**Service starts only if set**:
-- None (all have defaults)
-
-**Recommended to set**:
-- `NEO4J_PASSWORD` - Override production default
-- `VLLM_BASE_URL` - If vLLM on different host
-
-### Validation at Startup
-
-```python
-# config.py performs validation
-from kg-service.config import settings
-
-# Access configuration
-print(settings.NEO4J_URI)
-print(settings.VLLM_BASE_URL)
-print(settings.GLINER_THRESHOLD)
-```
-
-### Common Configuration Issues
-
-**Issue**: "Connection refused" to Neo4j
-```bash
-# Verify URI format
-NEO4J_URI=bolt://localhost:7687  # Correct
-NEO4J_URI=http://localhost:7474  # Wrong (wrong protocol)
-```
-
-**Issue**: vLLM not found
-```bash
-# Verify URL format
-VLLM_BASE_URL=http://localhost:8078  # Correct
-VLLM_BASE_URL=http://localhost:8078/v1  # Wrong
-```
-
-**Issue**: Slow entity extraction
-```bash
-# Increase threshold to reduce entities
-GLINER_THRESHOLD=0.60  # Was 0.45
-```
-
-## Security Considerations
-
-### API Key Security
-
-**Storage**:
-```bash
-# Never commit .env to version control
-# .gitignore already excludes it
-
-# Use secure password generation
-openssl rand -hex 32
-```
-
-**Environment**:
-```bash
-# Restrict file permissions
-chmod 600 .env
-
-# Verify not committed
-git status  # .env should not appear
-```
-
-### Network Security
-
-**Recommendations**:
-- Use `API_HOST=127.0.0.1` for local-only access
-- Configure firewall for remote Neo4j access
-- Use TLS for Neo4j in production (`bolt+s://`)
-- Keep vLLM on internal network
-- Implement API gateway for authentication
-
-### Service Security
-
-**Best Practices**:
-- Rotate NEO4J_PASSWORD regularly
-- Use different configs for dev/staging/production
-- Monitor service logs for suspicious activity
-- Limit concurrent requests appropriately
-- Keep dependencies updated
-
-## Environment-Specific Configs
-
-### Create Environment-Specific Files
-
-```bash
-# Create configs for each environment
-.env.development
-.env.staging
-.env.production
-
-# Use appropriate config
-cp .env.production .env
-```
-
-### Docker Deployment
-
-Pass configuration via environment variables:
-
-```bash
-docker run -e GLINER_THRESHOLD=0.45 \
-           -e VLLM_BASE_URL=http://vllm:8078 \
-           -e NEO4J_PASSWORD=secure-password \
-           kg-service
-```
-
-### Docker Compose
-
-Define in `docker-compose.yml`:
-
+**Container Name:**
 ```yaml
-kg-service:
-  image: kg-service:latest
-  environment:
-    GLINER_THRESHOLD: "0.45"
-    VLLM_BASE_URL: "http://vllm:8078"
-    NEO4J_URI: "bolt://neo4j:7687"
+services:
+  kg-service:
+    container_name: robaikg
+```
+
+**Network Mode:**
+```yaml
+network_mode: "host"  # Direct localhost access
+```
+
+**Volumes:**
+```yaml
+volumes:
+  - ../robaivenv:/robaivenv                    # Python environment
+  - ../robaimodeltools:/robaimodeltools        # Shared library
+  - ../robaidata:/data                         # SQLite database
+  - ../robaikg/coordinator:/robaikg/coordinator # Workers
+```
+
+**Environment File:**
+```yaml
+env_file:
+  - ../.env  # Load from repository root
+```
+
+**Health Check:**
+```yaml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+### Neo4j Docker Settings
+
+**Container Name:**
+```yaml
+services:
+  neo4j:
+    container_name: robaineo4j
+```
+
+**Image:**
+```yaml
+image: neo4j:5.25-community
+```
+
+**Ports:**
+```yaml
+ports:
+  - "7474:7474"  # HTTP (Browser)
+  - "7687:7687"  # Bolt (Driver)
+```
+
+**Environment:**
+```yaml
+environment:
+  - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+  - NEO4J_dbms_memory_heap_max__size=${NEO4J_HEAP_MAX_SIZE}
+  - NEO4J_dbms_memory_pagecache_size=${NEO4J_PAGECACHE_SIZE}
+  - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+  - NEO4J_dbms_security_procedures_allowlist=apoc.*
+```
+
+**Volumes:**
+```yaml
+volumes:
+  - neo4j_data:/data      # Graph database files
+  - neo4j_logs:/logs      # Log files
+  - neo4j_import:/import  # Import directory
 ```
 
 ## Performance Tuning
 
-### For Large-Scale Processing
+### Optimizing Processing Speed
 
+**Problem:** Documents processing too slowly
+
+**Solutions:**
+
+1. **Increase workers:**
+   ```bash
+   KG_NUM_WORKERS=4  # Up to 4 recommended
+   ```
+
+2. **Enable RAM mode:**
+   ```bash
+   USE_MEMORY_DB=true
+   ```
+
+3. **Reduce polling interval:**
+   ```bash
+   KG_POLL_INTERVAL=2.0  # Poll more frequently
+   ```
+
+4. **Lower confidence thresholds:**
+   ```bash
+   ENTITY_MIN_CONFIDENCE=0.3  # Accept more entities
+   RELATION_MIN_CONFIDENCE=0.35
+   ```
+
+### Optimizing Memory Usage
+
+**Problem:** System running out of memory
+
+**Solutions:**
+
+1. **Reduce Neo4j heap:**
+   ```bash
+   NEO4J_HEAP_MAX_SIZE=4G   # From 16G
+   NEO4J_PAGECACHE_SIZE=1G  # From 4G
+   ```
+
+2. **Disable RAM mode:**
+   ```bash
+   USE_MEMORY_DB=false  # Use disk SQLite
+   ```
+
+3. **Reduce workers:**
+   ```bash
+   KG_NUM_WORKERS=1  # Single worker
+   ```
+
+4. **Limit concurrent extractions:**
+   - Reduce KG_NUM_WORKERS
+   - Increase KG_POLL_INTERVAL
+
+### Optimizing Extraction Quality
+
+**Problem:** Too many low-quality entities/relationships
+
+**Solutions:**
+
+1. **Increase confidence thresholds:**
+   ```bash
+   ENTITY_MIN_CONFIDENCE=0.6
+   RELATION_MIN_CONFIDENCE=0.65
+   ```
+
+2. **Increase vLLM timeout:**
+   ```bash
+   VLLM_TIMEOUT=3600  # Allow more processing time
+   ```
+
+3. **Use single worker:**
+   ```bash
+   KG_NUM_WORKERS=1  # Sequential processing
+   ```
+
+### Handling Large Documents
+
+**Problem:** Timeouts on documents > 50K words
+
+**Solutions:**
+
+1. **Increase vLLM timeout:**
+   ```bash
+   VLLM_TIMEOUT=3600  # 1 hour instead of 30 min
+   ```
+
+2. **Check vLLM server capacity:**
+   ```bash
+   curl http://localhost:8088/api/v1/extraction/status
+   ```
+
+3. **Monitor extraction metrics:**
+   - `active_extractions` should be < `max_concurrent`
+   - If at capacity, reduce KG_NUM_WORKERS
+
+## Monitoring Configuration
+
+### Health Check Endpoints
+
+**Service health:**
 ```bash
-# Increase Neo4j connections
-NEO4J_MAX_CONNECTION_POOL_SIZE=100
+curl http://localhost:8088/health
 
-# Higher timeout for large documents
-VLLM_TIMEOUT=3600
-
-# Lenient entity extraction
-GLINER_THRESHOLD=0.35
+# Returns:
+{
+  "status": "healthy",
+  "services": {
+    "neo4j": "connected",
+    "vllm": "connected (model_name)",
+    "llm_extraction": "available"
+  },
+  "uptime_seconds": 3600.5
+}
 ```
 
-### For Speed (Fewer Entities)
-
+**Service statistics:**
 ```bash
-# Reduce Neo4j connections
-NEO4J_MAX_CONNECTION_POOL_SIZE=10
+curl http://localhost:8088/stats
 
-# Shorter timeout
-VLLM_TIMEOUT=600
-
-# Strict entity extraction
-GLINER_THRESHOLD=0.65
+# Returns:
+{
+  "total_documents_processed": 523,
+  "total_entities_extracted": 45234,
+  "total_relationships_extracted": 12456,
+  "avg_processing_time_ms": 2341.5,
+  "failed_count": 2
+}
 ```
 
-### For Memory Optimization
-
+**Extraction status:**
 ```bash
-# Lower threshold to reduce stored entities
-GLINER_THRESHOLD=0.50
+curl http://localhost:8088/api/v1/extraction/status
 
-# Reduce relationship confidence
-RELATION_MIN_CONFIDENCE=0.60
-
-# Minimize Neo4j connections
-NEO4J_MAX_CONNECTION_POOL_SIZE=20
+# Returns:
+{
+  "status": "healthy",
+  "active_extractions": 2,
+  "total_queued": 1234,
+  "total_completed": 1200,
+  "total_failed": 12,
+  "max_concurrent": 4,
+  "slots_available": 2
+}
 ```
 
-## Configuration Validation Script
+### Dashboard Configuration
 
-Check configuration without starting service:
-
+**Enable/disable:**
 ```bash
-# Validate .env file exists and is readable
-python3 -c "from kg-service.config import settings; print('Config OK')"
+KG_DASHBOARD_ENABLED=true
 ```
 
-## Logging Configuration
+**Access:**
+- URL: http://localhost:8090
+- Auto-refresh: Every 30 seconds
+- No authentication required (internal use only)
 
-### Console Output Format
+**Metrics displayed:**
+- Queue status distribution
+- Processing throughput
+- Success/failure rates
+- Long-running items alert
 
+**Security:** Dashboard runs on separate port, should only be accessible internally.
+
+## Security Configuration
+
+### API Authentication
+
+**Configure API key:**
+```bash
+OPENAI_API_KEY=your-secret-key-here
 ```
-%(asctime)s - %(name)s - %(levelname)s - %(message)s
+
+**Protected endpoints:**
+- POST /api/v1/queue/claim-items
+- GET /api/v1/queue/chunks/{id}
+- POST /api/v1/queue/write-results
+- POST /api/v1/queue/mark-*
+- GET /api/v1/queue/stats
+- GET /api/v1/queue/long-running
+
+**Usage:**
+```bash
+curl http://localhost:8088/api/v1/queue/stats \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-Example:
+### Neo4j Security
+
+**Change default password:**
+```bash
+NEO4J_PASSWORD=your_secure_password_here
 ```
-2025-10-17 14:32:18,234 - kg-service - INFO - Service starting
+
+**Network isolation:**
+- Default: Accessible on localhost only
+- Production: Consider firewall rules
+
+**Bolt encryption:**
+```bash
+# Enable TLS for Bolt protocol
+NEO4J_URI=bolt+s://localhost:7687
 ```
 
-### File Logging
+### Input Validation
 
-**Location**: `kg-service.log`
+**Automatic validation via Pydantic:**
+- URL format validation
+- Content ID > 0
+- Chunk ordering validation
+- Text length limits (max 1M chars)
 
-**Format**: Detailed with function names and line numbers
-
-**Rotation**: 10MB files with 5 backups (50MB max)
+**No additional configuration needed.**
 
 ## Troubleshooting Configuration
 
-### Missing Configuration
+### Issue: Service won't start
 
-**Problem**: Service fails to start with config error
+**Check:**
+1. Environment variables loaded:
+   ```bash
+   docker compose logs robaikg | grep "Service: kg-service"
+   ```
 
-**Solution**:
+2. Neo4j connection:
+   ```bash
+   docker compose logs robaikg | grep "Neo4j:"
+   ```
+
+3. vLLM connection:
+   ```bash
+   docker compose logs robaikg | grep "Augmentation LLM:"
+   ```
+
+### Issue: "Database not initialized"
+
+**Cause:** Database instance not registered before API calls.
+
+**Solution:** Wait 10-15 seconds after startup, or check logs:
 ```bash
-# Check .env exists
-ls -la .env
-
-# Verify required settings
-grep NEO4J_URI .env
-grep VLLM_BASE_URL .env
-
-# Generate from example if missing
-cp .env.example .env
+docker compose logs robaikg | grep "Database initialized"
 ```
 
-### Connection Failures
+### Issue: High memory usage
 
-**Problem**: Cannot connect to Neo4j or vLLM
-
-**Solution**:
+**Diagnosis:**
 ```bash
-# Verify URLs are correct
-curl bolt://localhost:7687 2>&1 | head -5
-curl http://localhost:8078/v1/models
-
-# Update .env if needed
-nano .env
+docker stats robaikg robaineo4j
 ```
 
-### Performance Issues
+**Solutions:**
+1. Reduce NEO4J_HEAP_MAX_SIZE
+2. Reduce NEO4J_PAGECACHE_SIZE
+3. Set USE_MEMORY_DB=false
+4. Reduce KG_NUM_WORKERS
 
-**Problem**: Slow entity/relationship extraction
+### Issue: Extraction timeouts
 
-**Solution**:
+**Diagnosis:**
 ```bash
-# Increase thresholds
-GLINER_THRESHOLD=0.60
-RELATION_MIN_CONFIDENCE=0.60
-
-# Reduce timeout if stuck
-VLLM_TIMEOUT=600
+docker compose logs robaikg | grep "timeout"
 ```
+
+**Solutions:**
+1. Increase VLLM_TIMEOUT
+2. Check vLLM server status:
+   ```bash
+   curl http://localhost:8078/health
+   ```
+3. Monitor extraction capacity:
+   ```bash
+   curl http://localhost:8088/api/v1/extraction/status
+   ```
+
+## Configuration Best Practices
+
+### Development
+
+1. **Use disk mode:** `USE_MEMORY_DB=false` (easier debugging)
+2. **Enable debug logging:** `LOG_LEVEL=DEBUG`
+3. **Lower thresholds:** More results, faster iteration
+4. **Single worker:** Easier to trace issues
+5. **Enable dashboard:** Monitor queue status
+
+### Production
+
+1. **Use RAM mode:** `USE_MEMORY_DB=true` (10x faster)
+2. **Optimize Neo4j:** Allocate appropriate heap/pagecache
+3. **Multiple workers:** Scale to throughput needs
+4. **Balanced thresholds:** Default 0.4/0.45 works well
+5. **Monitor metrics:** Set up health check alerts
+
+### Security
+
+1. **Change default passwords:** NEO4J_PASSWORD, OPENAI_API_KEY
+2. **Restrict network access:** Use firewall rules
+3. **Rotate API keys:** Regularly update OPENAI_API_KEY
+4. **Disable debug mode:** `DEBUG=false` in production
+5. **Monitor logs:** Watch for authentication failures
+
+## Configuration Reference Table
+
+| Variable | Default | Type | Required | Description |
+|----------|---------|------|----------|-------------|
+| KG_SERVICE_PORT | 8088 | int | No | HTTP API port |
+| API_HOST | 0.0.0.0 | str | No | Bind address |
+| DEBUG | false | bool | No | Debug mode |
+| LOG_LEVEL | INFO | str | No | Log verbosity |
+| NEO4J_URI | bolt://localhost:7687 | str | Yes | Neo4j connection |
+| NEO4J_USER | neo4j | str | Yes | Neo4j username |
+| NEO4J_PASSWORD | knowledge_graph_2024 | str | Yes | Neo4j password |
+| NEO4J_HEAP_MAX_SIZE | 16G | str | No | JVM heap size |
+| NEO4J_PAGECACHE_SIZE | 2G | str | No | Page cache size |
+| AUGMENT_LLM_URL | http://localhost:8078 | str | Yes | vLLM server URL |
+| VLLM_TIMEOUT | 1800 | int | No | vLLM timeout (seconds) |
+| ENTITY_MIN_CONFIDENCE | 0.4 | float | No | Entity threshold |
+| RELATION_MIN_CONFIDENCE | 0.45 | float | No | Relationship threshold |
+| KG_NUM_WORKERS | 1 | int | No | Worker count |
+| KG_POLL_INTERVAL | 5.0 | float | No | Poll interval (seconds) |
+| KG_DASHBOARD_ENABLED | true | bool | No | Enable dashboard |
+| DB_PATH | /data/crawl4ai_rag.db | str | Yes | SQLite database path |
+| USE_MEMORY_DB | true | bool | No | RAM mode |
+| OPENAI_API_KEY | - | str | Yes | API authentication |
 
 ## Next Steps
 
-- [Getting Started](getting-started.html) - Installation and usage
-- [API Reference](api-reference.html) - Complete API documentation
-- [Architecture](architecture.html) - Understanding the system design
+- **Architecture Details:** See [Architecture](architecture.md) for how configuration affects system behavior
+- **API Usage:** Review [API Reference](api-reference.md) for endpoint-specific configuration
+- **Deployment:** Plan production configuration based on workload
